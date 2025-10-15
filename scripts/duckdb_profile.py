@@ -66,7 +66,8 @@ def main() -> int:
         connect_kwargs["config"] = {"threads": args.threads}
 
     conn = duckdb.connect(database=":memory:", read_only=False, **connect_kwargs)
-    conn.execute(f"PRAGMA threads={args.threads};" if args.threads else "PRAGMA threads=AUTOMATIC;")
+    if args.threads:
+        conn.execute(f"PRAGMA threads={args.threads};")
 
     start = time.perf_counter()
     relation = conn.from_csv_auto(str(csv_path), sample_size=args.sample)
