@@ -1,0 +1,52 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+pip-wheel-metadata/
+build/
+dist/
+
+# Environment files
+.env
+backend/.env
+frontend/.env
+.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Node / Frontend
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+frontend/dist/
+frontend/.vite/
+frontend/.eslintcache
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Data artifacts
+data/*
+!data/.gitkeep
+
+# Logs
+*.log
+logs/
