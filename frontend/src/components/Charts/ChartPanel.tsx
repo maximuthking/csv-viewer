@@ -206,12 +206,12 @@ export function ChartPanel() {
               seriesDataWithGaps.push(null);
             }
 
-            const symbolSize = point.isInterpolated ? 3 : 8;
-            seriesDataWithGaps.push({
-              value: [point.axisValue, point.numericValue],
-              symbolSize,
-              itemStyle: { color: "#1976d2" }
-            });
+          const symbolSize = point.isInterpolated ? 3 : 8;
+          seriesDataWithGaps.push({
+            value: [point.axisValue, point.numericValue],
+            symbolSize,
+            itemStyle: { color: point.isInterpolated ? "#64b5f6" : "#1976d2" }
+          });
 
             previousTimestamp = point.timestamp;
           });
@@ -229,10 +229,53 @@ export function ChartPanel() {
           return lineSeries;
         }
 
+        const barSeriesData: Array<
+          | {
+              value: [string | number | Date, number];
+              itemStyle: { color: string };
+            }
+          | null
+        > = [];
+
+        let previousTimestamp: number | null = null;
+
+        seriesPoints.forEach((point, index) => {
+          const prevPoint = seriesPoints[index - 1];
+          const isGap =
+            index > 0 &&
+            bucketSizeMs &&
+            prevPoint?.timestamp !== null &&
+            point.timestamp !== null &&
+            point.timestamp - (prevPoint?.timestamp ?? 0) > bucketSizeMs * 1.5;
+
+          if (isGap) {
+            const expectedTimestamp = (prevPoint?.timestamp ?? 0) + bucketSizeMs!;
+            const gapAxisValue =
+              typeof prevPoint?.axisValue === "number"
+                ? expectedTimestamp
+                : new Date(expectedTimestamp).toISOString();
+
+            barSeriesData.push({
+              value: [gapAxisValue, 0],
+              itemStyle: {
+                color: "#bbdefb"
+              }
+            });
+          }
+
+          barSeriesData.push({
+            value: [point.axisValue, point.numericValue],
+            itemStyle: {
+              color: point.isInterpolated ? "#64b5f6" : "#1976d2"
+            }
+          });
+          previousTimestamp = point.timestamp;
+        });
+
         const barSeries: SeriesOption = {
           name: col,
           type: "bar",
-          data: seriesPoints.map((point) => [point.axisValue, point.numericValue])
+          data: barSeriesData
         };
         return barSeries;
       });
