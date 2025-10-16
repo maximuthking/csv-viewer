@@ -161,8 +161,6 @@ async def get_chart_data(request: schemas.ChartDataRequest) -> schemas.ChartData
             value_columns=request.value_columns,
             time_bucket=request.time_bucket,
             interpolation=request.interpolation,
-            start_time=request.start_time,
-            end_time=request.end_time,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

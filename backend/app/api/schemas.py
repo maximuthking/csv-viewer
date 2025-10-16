@@ -140,8 +140,6 @@ class ChartDataRequest(BaseModel):
     value_columns: List[str]
     time_bucket: str = Field("1 day", description="e.g., '1 minute', '1 hour', '1 day'")
     interpolation: str = Field("none", description="e.g., 'none', 'forward_fill'")
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
 
     @field_validator("value_columns")
     @classmethod

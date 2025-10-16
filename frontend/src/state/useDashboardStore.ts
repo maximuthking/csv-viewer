@@ -50,7 +50,6 @@ export type ChartOptions = {
   value_columns: string[];
   time_bucket: string;
   interpolation: "none" | "forward_fill";
-  time_range: [string, string] | null;
 };
 
 type ChartState = {
@@ -107,8 +106,7 @@ const initialChartState: ChartState = {
     time_column: null,
     value_columns: [],
     time_bucket: "1 day",
-    interpolation: "none",
-    time_range: null
+    interpolation: "none"
   },
   isLoading: false
 };
@@ -118,17 +116,15 @@ function getDefaultChartOptions(schema: ColumnSchema[]): Partial<ChartOptions> {
     return {};
   }
   const timeColumn = schema.find((c) => c.dtype.includes("TIMESTAMP"));
-  const valueColumns = schema
-    .filter((c) =>
-      ["BIGINT", "DOUBLE", "FLOAT", "INTEGER", "REAL"].some((t) =>
-        c.dtype.toUpperCase().includes(t)
-      )
+  const valueColumn = schema.find((c) =>
+    ["BIGINT", "DOUBLE", "FLOAT", "INTEGER", "REAL"].some((t) =>
+      c.dtype.toUpperCase().includes(t)
     )
-    .slice(0, 2); // Default to first two numeric columns for scatter
+  );
 
   return {
     time_column: timeColumn?.name ?? null,
-    value_columns: valueColumns.map((c) => c.name)
+    value_columns: valueColumn ? [valueColumn.name] : []
   };
 }
 
@@ -281,20 +277,14 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }
   },
   async setChartOptions(options) {
-    const currentOptions = get().chart.options;
-    const newOptions = { ...currentOptions, ...options };
-
-    // Reset time range if chart type or columns change, as the context is different
-    if (options.chart_type || options.time_column || options.value_columns) {
-      newOptions.time_range = null;
-    }
-
-    set((state) => ({ chart: { ...state.chart, options: newOptions } }));
+    set((state) => ({
+      chart: { ...state.chart, options: { ...state.chart.options, ...options } }
+    }));
     await get().refreshChart();
   },
   async refreshChart() {
     const { selectedPath, chart } = get();
-    const { chart_type, time_column, value_columns, time_range } = chart.options;
+    const { chart_type, time_column, value_columns } = chart.options;
 
     const isTimeSeries = chart_type === "line" || chart_type === "bar";
 
@@ -309,16 +299,13 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     set({ chart: { ...chart, isLoading: true, error: undefined } });
 
     try {
-      const [start_time, end_time] = time_range ?? [null, null];
       const payload: ChartDataRequest = {
         path: selectedPath,
         chart_type,
         time_column,
         value_columns,
         time_bucket: chart.options.time_bucket,
-        interpolation: chart.options.interpolation,
-        start_time,
-        end_time
+        interpolation: chart.options.interpolation
       };
       const result = await fetchChartData(payload);
       set({

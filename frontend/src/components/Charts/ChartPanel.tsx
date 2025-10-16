@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
 import { useDashboardStore, ChartType } from '../../state/useDashboardStore';
@@ -30,25 +30,6 @@ export function ChartPanel() {
       )
     )
   }), [schema]);
-
-  const handleValueColumnChange = (colName: string, checked: boolean) => {
-    const newCols = checked
-      ? [...value_columns, colName]
-      : value_columns.filter((c) => c !== colName);
-    void setChartOptions({ value_columns: newCols });
-  };
-
-  const onDataZoom = useCallback(
-    (e: any) => {
-      const { startValue, endValue } = e.batch[0];
-      const newRange: [string, string] = [
-        new Date(startValue).toISOString(),
-        new Date(endValue).toISOString()
-      ];
-      void setChartOptions({ time_range: newRange });
-    },
-    [setChartOptions]
-  );
 
   const options = useMemo<EChartsOption>(() => {
     const isTimeSeries = chart_type === "line" || chart_type === "bar";
@@ -87,7 +68,7 @@ export function ChartPanel() {
     }
 
     return {
-      grid: { top: 80, right: 24, bottom: 60, left: 60 },
+      grid: { top: 80, right: 24, bottom: 24, left: 60, containLabel: true },
       xAxis,
       yAxis,
       series: seriesData,
@@ -98,15 +79,6 @@ export function ChartPanel() {
         left: "center",
         type: "scroll"
       },
-      dataZoom: [
-        {
-          type: "slider",
-          show: isTimeSeries,
-          filterMode: "weakFilter",
-          showDetail: false,
-          bottom: 10
-        }
-      ]
     };
   }, [chart_type, data, time_column, value_columns]);
 
@@ -128,7 +100,7 @@ export function ChartPanel() {
             ))}
           </select>
         </label>
-        {chart_type !== 'scatter' && (
+        {chart_type !== 'scatter' ? (
           <>
             <label>
               Time Column
@@ -138,6 +110,18 @@ export function ChartPanel() {
                 disabled={isLoading}
               >
                 {timeColumns.map((col) => (
+                  <option key={col.name} value={col.name}>{col.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Value Column
+              <select
+                value={value_columns[0] ?? ''}
+                onChange={(e) => setChartOptions({ value_columns: [e.target.value] })}
+                disabled={isLoading || numericColumns.length === 0}
+              >
+                {numericColumns.map((col) => (
                   <option key={col.name} value={col.name}>{col.name}</option>
                 ))}
               </select>
@@ -169,23 +153,34 @@ export function ChartPanel() {
               </select>
             </label>
           </>
+        ) : (
+          <>
+            <label>
+              X-Axis Column
+              <select
+                value={value_columns[0] ?? ''}
+                onChange={(e) => setChartOptions({ value_columns: [e.target.value, value_columns[1]] })}
+                disabled={isLoading || numericColumns.length === 0}
+              >
+                {numericColumns.map((col) => (
+                  <option key={col.name} value={col.name}>{col.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Y-Axis Column
+              <select
+                value={value_columns[1] ?? ''}
+                onChange={(e) => setChartOptions({ value_columns: [value_columns[0], e.target.value] })}
+                disabled={isLoading || numericColumns.length < 2}
+              >
+                {numericColumns.map((col) => (
+                  <option key={col.name} value={col.name}>{col.name}</option>
+                ))}
+              </select>
+            </label>
+          </>
         )}
-        <div className={styles.multiSelect}>
-          <p>Value Column(s)</p>
-          <div className={styles.checkboxGroup}>
-            {numericColumns.map((col) => (
-              <label key={col.name} className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={value_columns.includes(col.name)}
-                  onChange={(e) => handleValueColumnChange(col.name, e.target.checked)}
-                  disabled={isLoading}
-                />
-                {col.name}
-              </label>
-            ))}
-          </div>
-        </div>
       </div>
 
       <div className={styles.chartWrapper}>
@@ -197,7 +192,6 @@ export function ChartPanel() {
             style={{ height: '400px', width: '100%' }}
             notMerge
             lazyUpdate
-            onEvents={{ dataZoom: onDataZoom }}
           />
         )}
         {isLoading && <div className={styles.loadingOverlay}>Loading chart...</div>}
