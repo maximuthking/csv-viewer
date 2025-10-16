@@ -131,32 +131,3 @@ class SummaryResponse(BaseModel):
     summaries: List[ColumnSummary]
 
 
-class ChartMetric(BaseModel):
-    """차트용 집계 정의."""
-
-    name: str = Field(..., description="응답에서 사용할 별칭")
-    agg: str = Field(..., description="집계 함수: count,sum,avg,min,max 지원")
-    column: Optional[str] = Field(
-        None, description="count의 경우 생략 가능. 나머지는 컬럼 지정 필요"
-    )
-
-
-class ChartRequest(BaseModel):
-    """차트 데이터 요청."""
-
-    path: str
-    dimensions: List[str] = Field(..., min_items=1, max_items=2)
-    metrics: List[ChartMetric] = Field(default_factory=list)
-    filters: List[FilterSpec] = Field(default_factory=list)
-    limit: Optional[int] = Field(
-        200,
-        ge=10,
-        le=1000,
-        description="그룹핑 결과 상한. 기본값 200, 최대 1000",
-    )
-
-
-class ChartResponse(BaseModel):
-    """차트 데이터 응답."""
-
-    series: List[dict[str, Any]]

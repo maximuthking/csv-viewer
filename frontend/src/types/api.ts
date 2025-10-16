@@ -43,19 +43,3 @@ export type SummaryResponse = {
     stddev_value?: number | null;
   }>;
 };
-
-export type ChartRequest = {
-  path: string;
-  dimensions: string[];
-  metrics: Array<{
-    name: string;
-    agg: string;
-    column?: string | null;
-  }>;
-  filters?: PreviewRequest["filters"];
-  limit?: number;
-};
-
-export type ChartResponse = {
-  series: Array<Record<string, unknown>>;
-};

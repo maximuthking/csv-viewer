@@ -16,9 +16,6 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes("plotly.js-dist")) {
-              return "plotly";
-            }
             if (id.includes("ag-grid-react") || id.includes("ag-grid-community")) {
               return "aggrid";
             }

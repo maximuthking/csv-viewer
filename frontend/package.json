@@ -14,7 +14,6 @@
     "ag-grid-react": "^32.1.0",
     "axios": "^1.7.2",
     "clsx": "^2.1.1",
-    "plotly.js-dist-min": "^2.35.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.2"

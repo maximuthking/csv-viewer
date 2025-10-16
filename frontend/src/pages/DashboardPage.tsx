@@ -3,7 +3,6 @@ import { FileBrowser } from "../components/FileBrowser/FileBrowser";
 import { DataPreviewGrid } from "../components/DataPreview/DataPreviewGrid";
 import { PreviewControls } from "../components/DataPreview/PreviewControls";
 import { SummaryPanel } from "../components/Summary/SummaryPanel";
-import { ChartBuilder } from "../components/Charts/ChartBuilder";
 import { useDashboardStore } from "../state/useDashboardStore";
 import styles from "./DashboardPage.module.css";
 
@@ -17,13 +16,10 @@ export function DashboardPage() {
     filesError,
     preview,
     summary,
-    chart,
     init,
     selectFile,
     refreshPreview,
     refreshSummary,
-    refreshChart,
-    setChartLimit,
     setPage,
     setPageSize,
     updateSort,
@@ -37,13 +33,10 @@ export function DashboardPage() {
     filesError: state.filesError,
     preview: state.preview,
     summary: state.summary,
-    chart: state.chart,
     init: state.init,
     selectFile: state.selectFile,
     refreshPreview: state.refreshPreview,
     refreshSummary: state.refreshSummary,
-    refreshChart: state.refreshChart,
-    setChartLimit: state.setChartLimit,
     setPage: state.setPage,
     setPageSize: state.setPageSize,
     updateSort: state.updateSort,
@@ -65,7 +58,7 @@ export function DashboardPage() {
     <div className={styles.page}>
       <header className={styles.topBar}>
         <div>
-          <h1 className={styles.title}>CSV Viewer &amp; Visualizer</h1>
+          <h1 className={styles.title}>CSV Viewer</h1>
           <p className={styles.subtitle}>{subtitle}</p>
         </div>
         <div className={styles.status}>
@@ -113,23 +106,6 @@ export function DashboardPage() {
               isLoading={summary.isLoading}
               error={summary.error}
               onRefresh={() => void refreshSummary()}
-            />
-            <ChartBuilder
-              schema={schema}
-              data={chart.data}
-              limit={chart.limit}
-              isLoading={chart.isLoading}
-              error={chart.error}
-              onLimitChange={(value) => void setChartLimit(value)}
-              onRun={(dimensions, metric, limitValue) =>
-                void refreshChart(dimensions, [
-                  {
-                    name: metric.alias,
-                    agg: metric.agg,
-                    column: metric.column ?? null
-                  }
-                ], limitValue)
-              }
             />
           </div>
         </div>

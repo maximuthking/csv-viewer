@@ -15,10 +15,6 @@ from . import schemas
 
 router = APIRouter(prefix="/v1", tags=["csv"])
 
-DEFAULT_CHART_LIMIT = 200
-MAX_CHART_LIMIT = 1000
-MIN_CHART_LIMIT = 10
-
 
 def _to_filter_specs(items: List[schemas.FilterSpec]) -> List[data_access.FilterSpec]:
     """Pydantic 필터 스펙을 데이터 접근 레이어 스펙으로 변환."""
@@ -152,37 +148,3 @@ async def summary(request: schemas.SummaryRequest) -> schemas.SummaryResponse:
         ]
     )
 
-
-@router.post("/charts", response_model=schemas.ChartResponse)
-async def chart(request: schemas.ChartRequest) -> schemas.ChartResponse:
-    """차트/대시보드를 위한 집계 데이터를 반환한다."""
-
-    filters = _to_filter_specs(request.filters)
-
-    metrics: list[tuple[str, str, str | None]]
-    if request.metrics:
-        metrics = [
-            (metric.name, metric.agg, metric.column)
-            for metric in request.metrics
-        ]
-    else:
-        metrics = [("row_count", "count", None)]
-
-    effective_limit = request.limit or DEFAULT_CHART_LIMIT
-    effective_limit = max(MIN_CHART_LIMIT, min(effective_limit, MAX_CHART_LIMIT))
-
-    try:
-        df = data_access.chart_aggregate(
-            request.path,
-            dimensions=request.dimensions,
-            metrics=metrics,
-            filters=filters,
-            limit=effective_limit,
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    rows = df.to_dict(orient="records")
-    return schemas.ChartResponse(series=rows)
