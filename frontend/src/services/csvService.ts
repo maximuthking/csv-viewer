@@ -1,5 +1,7 @@
 import { httpClient } from "./httpClient";
 import type {
+  ChartDataRequest,
+  ChartDataResponse,
   ColumnSchema,
   CsvFileInfo,
   PreviewRequest,
@@ -29,5 +31,10 @@ export async function fetchSummary(path: string, columns?: string[]): Promise<Su
     path,
     columns
   });
+  return response.data;
+}
+
+export async function fetchChartData(payload: ChartDataRequest): Promise<ChartDataResponse> {
+  const response = await httpClient.post<ChartDataResponse>("/chart-data", payload);
   return response.data;
 }

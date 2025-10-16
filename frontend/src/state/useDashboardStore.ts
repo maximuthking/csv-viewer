@@ -1,11 +1,19 @@
 import { create } from "zustand";
 import type {
+  ChartDataRequest,
+  ChartDataResponse,
   ColumnSchema,
   CsvFileInfo,
   FilterOperator,
   SortDirection
 } from "../types/api";
-import { fetchCsvFiles, fetchPreview, fetchSchema, fetchSummary } from "../services/csvService";
+import {
+  fetchChartData,
+  fetchCsvFiles,
+  fetchPreview,
+  fetchSchema,
+  fetchSummary
+} from "../services/csvService";
 import type { PreviewResponse, SummaryResponse } from "../types/api";
 import { env } from "../config/env";
 
@@ -34,6 +42,25 @@ type SummaryState = {
   error?: string;
 };
 
+export type ChartType = "line" | "bar" | "scatter";
+
+export type ChartOptions = {
+  chart_type: ChartType;
+  time_column: string | null;
+  value_columns: string[];
+  time_bucket: string;
+  interpolation: "none" | "forward_fill";
+  time_range: [string, string] | null;
+};
+
+type ChartState = {
+  data: ChartDataResponse["rows"];
+  columns: ChartDataResponse["columns"];
+  options: ChartOptions;
+  isLoading: boolean;
+  error?: string;
+};
+
 type DashboardState = {
   files: CsvFileInfo[];
   recentFiles: string[];
@@ -43,6 +70,7 @@ type DashboardState = {
   filesError?: string;
   preview: PreviewState;
   summary: SummaryState;
+  chart: ChartState;
   init: () => Promise<void>;
   selectFile: (path: string) => Promise<void>;
   refreshPreview: () => Promise<void>;
@@ -51,6 +79,8 @@ type DashboardState = {
   updateSort: (sort: SortSpec[]) => Promise<void>;
   updateFilters: (filters: FilterSpec[]) => Promise<void>;
   refreshSummary: () => Promise<void>;
+  refreshChart: () => Promise<void>;
+  setChartOptions: (options: Partial<ChartOptions>) => Promise<void>;
 };
 
 const initialPreviewState: PreviewState = {
@@ -69,6 +99,39 @@ const initialSummaryState: SummaryState = {
   isLoading: false
 };
 
+const initialChartState: ChartState = {
+  data: [],
+  columns: [],
+  options: {
+    chart_type: "line",
+    time_column: null,
+    value_columns: [],
+    time_bucket: "1 day",
+    interpolation: "none",
+    time_range: null
+  },
+  isLoading: false
+};
+
+function getDefaultChartOptions(schema: ColumnSchema[]): Partial<ChartOptions> {
+  if (schema.length === 0) {
+    return {};
+  }
+  const timeColumn = schema.find((c) => c.dtype.includes("TIMESTAMP"));
+  const valueColumns = schema
+    .filter((c) =>
+      ["BIGINT", "DOUBLE", "FLOAT", "INTEGER", "REAL"].some((t) =>
+        c.dtype.toUpperCase().includes(t)
+      )
+    )
+    .slice(0, 2); // Default to first two numeric columns for scatter
+
+  return {
+    time_column: timeColumn?.name ?? null,
+    value_columns: valueColumns.map((c) => c.name)
+  };
+}
+
 export const useDashboardStore = create<DashboardState>((set, get) => ({
   files: [],
   recentFiles: [],
@@ -77,6 +140,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   filesError: undefined,
   preview: initialPreviewState,
   summary: initialSummaryState,
+  chart: initialChartState,
   async init() {
     set({ filesLoading: true, filesError: undefined });
     try {
@@ -101,7 +165,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       selectedPath: path,
       schema: [],
       preview: { ...initialPreviewState, isLoading: true },
-      summary: { ...initialSummaryState, isLoading: true }
+      summary: { ...initialSummaryState, isLoading: true },
+      chart: { ...initialChartState, isLoading: true }
     });
 
     const updateRecent = (prev: string[]) => {
@@ -110,29 +175,35 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       return next.slice(0, 5);
     };
 
-    set((state) => ({
-      recentFiles: updateRecent(state.recentFiles)
-    }));
+    set((state) => ({ recentFiles: updateRecent(state.recentFiles) }));
 
     try {
       const schema = await fetchSchema(path);
-      set({ schema });
+      const defaultChartOpts = getDefaultChartOptions(schema);
+      set((state) => ({
+        schema,
+        chart: {
+          ...state.chart,
+          options: { ...initialChartState.options, ...defaultChartOpts }
+        }
+      }));
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "컬럼 스키마를 불러오지 못했습니다.";
       set({
         schema: [],
-        preview: {
-          ...initialPreviewState,
-          isLoading: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "컬럼 스키마를 불러오지 못했습니다."
-        }
+        preview: { ...initialPreviewState, isLoading: false, error: errorMessage },
+        summary: { ...initialSummaryState, isLoading: false, error: errorMessage },
+        chart: { ...initialChartState, isLoading: false, error: errorMessage }
       });
       return;
     }
 
-    await Promise.all([get().refreshPreview(), get().refreshSummary()]);
+    await Promise.all([
+      get().refreshPreview(),
+      get().refreshSummary(),
+      get().refreshChart()
+    ]);
   },
   async refreshPreview() {
     const { selectedPath, preview } = get();
@@ -140,13 +211,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       return;
     }
 
-    set({
-      preview: {
-        ...preview,
-        isLoading: true,
-        error: undefined
-      }
-    });
+    set({ preview: { ...preview, isLoading: true, error: undefined } });
 
     try {
       const payload = {
@@ -175,36 +240,25 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
           columns: [],
           totalRows: 0,
           isLoading: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Failed to load preview data."
+          error: error instanceof Error ? error.message : "Failed to load preview data."
         }
       });
     }
   },
   async setPage(page) {
-    set((state) => ({
-      preview: { ...state.preview, page }
-    }));
+    set((state) => ({ preview: { ...state.preview, page } }));
     await get().refreshPreview();
   },
   async setPageSize(pageSize) {
-    set((state) => ({
-      preview: { ...state.preview, pageSize, page: 1 }
-    }));
+    set((state) => ({ preview: { ...state.preview, pageSize, page: 1 } }));
     await get().refreshPreview();
   },
   async updateSort(sort) {
-    set((state) => ({
-      preview: { ...state.preview, sort, page: 1 }
-    }));
+    set((state) => ({ preview: { ...state.preview, sort, page: 1 } }));
     await get().refreshPreview();
   },
   async updateFilters(filters) {
-    set((state) => ({
-      preview: { ...state.preview, filters, page: 1 }
-    }));
+    set((state) => ({ preview: { ...state.preview, filters, page: 1 } }));
     await get().refreshPreview();
   },
   async refreshSummary() {
@@ -215,18 +269,74 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     set({ summary: { ...initialSummaryState, isLoading: true } });
     try {
       const response = await fetchSummary(selectedPath);
-      set({
-        summary: { data: response.summaries, isLoading: false }
-      });
+      set({ summary: { data: response.summaries, isLoading: false } });
     } catch (error) {
       set({
         summary: {
           ...initialSummaryState,
           isLoading: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Failed to load summary data."
+          error: error instanceof Error ? error.message : "Failed to load summary data."
+        }
+      });
+    }
+  },
+  async setChartOptions(options) {
+    const currentOptions = get().chart.options;
+    const newOptions = { ...currentOptions, ...options };
+
+    // Reset time range if chart type or columns change, as the context is different
+    if (options.chart_type || options.time_column || options.value_columns) {
+      newOptions.time_range = null;
+    }
+
+    set((state) => ({ chart: { ...state.chart, options: newOptions } }));
+    await get().refreshChart();
+  },
+  async refreshChart() {
+    const { selectedPath, chart } = get();
+    const { chart_type, time_column, value_columns, time_range } = chart.options;
+
+    const isTimeSeries = chart_type === "line" || chart_type === "bar";
+
+    if (!selectedPath || value_columns.length === 0) {
+      return; // Not ready to fetch
+    }
+    if (isTimeSeries && !time_column) {
+      set((state) => ({ chart: { ...state.chart, isLoading: false, error: "Time column not selected." } }));
+      return;
+    }
+
+    set({ chart: { ...chart, isLoading: true, error: undefined } });
+
+    try {
+      const [start_time, end_time] = time_range ?? [null, null];
+      const payload: ChartDataRequest = {
+        path: selectedPath,
+        chart_type,
+        time_column,
+        value_columns,
+        time_bucket: chart.options.time_bucket,
+        interpolation: chart.options.interpolation,
+        start_time,
+        end_time
+      };
+      const result = await fetchChartData(payload);
+      set({
+        chart: {
+          ...chart,
+          data: result.rows,
+          columns: result.columns,
+          isLoading: false
+        }
+      });
+    } catch (error) {
+      set({
+        chart: {
+          ...chart,
+          data: [],
+          columns: [],
+          isLoading: false,
+          error: error instanceof Error ? error.message : "Failed to load chart data."
         }
       });
     }

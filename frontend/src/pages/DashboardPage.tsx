@@ -5,6 +5,7 @@ import { PreviewControls } from "../components/DataPreview/PreviewControls";
 import { SummaryPanel } from "../components/Summary/SummaryPanel";
 import { useDashboardStore } from "../state/useDashboardStore";
 import styles from "./DashboardPage.module.css";
+import { ChartPanel } from "../components/Charts/ChartPanel";
 
 export function DashboardPage() {
   const {
@@ -107,6 +108,7 @@ export function DashboardPage() {
               error={summary.error}
               onRefresh={() => void refreshSummary()}
             />
+            <ChartPanel />
           </div>
         </div>
       </div>

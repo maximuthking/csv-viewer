@@ -43,3 +43,16 @@ export type SummaryResponse = {
     stddev_value?: number | null;
   }>;
 };
+
+export type ChartDataRequest = {
+  path: string;
+  time_column: string;
+  value_columns: string[];
+  time_bucket: string;
+  interpolation: "none" | "forward_fill";
+};
+
+export type ChartDataResponse = {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+};

@@ -394,9 +394,9 @@ def summarize_csv(
                 f"""
                 SELECT
                     COUNT(*) AS total_rows,
-                    COUNT("{column_name}") AS non_null_count,
-                    COUNT(*) - COUNT("{column_name}") AS null_count,
-                    COUNT(DISTINCT "{column_name}") AS distinct_count
+                    COUNT(\"{column_name}\") AS non_null_count,
+                    COUNT(*) - COUNT(\"{column_name}\") AS null_count,
+                    COUNT(DISTINCT \"{column_name}\") AS distinct_count
                 FROM csv_view
                 """
             ).fetchone()
@@ -412,12 +412,12 @@ def summarize_csv(
                 numeric_stats = conn.execute(
                     f"""
                     SELECT
-                        MIN("{column_name}") AS min_value,
-                        MAX("{column_name}") AS max_value,
-                        AVG("{column_name}") AS mean_value,
-                        STDDEV_SAMP("{column_name}") AS stddev_value
+                        MIN(\"{column_name}\") AS min_value,
+                        MAX(\"{column_name}\") AS max_value,
+                        AVG(\"{column_name}\") AS mean_value,
+                        STDDEV_SAMP(\"{column_name}\") AS stddev_value
                     FROM csv_view
-                    WHERE "{column_name}" IS NOT NULL
+                    WHERE \"{column_name}\" IS NOT NULL
                     """
                 ).fetchone()
                 min_value = numeric_stats[0]
@@ -432,10 +432,10 @@ def summarize_csv(
                 minmax = conn.execute(
                     f"""
                     SELECT
-                        MIN("{column_name}") AS min_value,
-                        MAX("{column_name}") AS max_value
+                        MIN(\"{column_name}\") AS min_value,
+                        MAX(\"{column_name}\") AS max_value
                     FROM csv_view
-                    WHERE "{column_name}" IS NOT NULL
+                    WHERE \"{column_name}\" IS NOT NULL
                     """
                 ).fetchone()
                 min_value = minmax[0]
@@ -459,3 +459,111 @@ def summarize_csv(
     return summaries
 
 
+def get_chart_data(
+    csv_path: Path | str,
+    *,
+    chart_type: str,
+    value_columns: List[str],
+    time_column: str | None = None,
+    time_bucket: str | None = None,
+    interpolation: str = "none",
+    start_time: str | None = None,
+    end_time: str | None = None,
+    sample_size: int | None = None,
+) -> pd.DataFrame:
+    """Get aggregated or sampled data for chart visualization."""
+
+    if not value_columns:
+        raise ValueError("At least one value column is required.")
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size, view_name="chart_view")
+
+        if chart_type == "scatter":
+            if len(value_columns) < 2:
+                raise ValueError("Scatter plots require at least two value columns (X and Y).")
+            x_col, y_col = _quote_identifier(value_columns[0]), _quote_identifier(value_columns[1])
+            query = f"""
+                SELECT {x_col}, {y_col}
+                FROM chart_view
+                USING SAMPLE 5000 ROWS
+            """
+            return conn.execute(query).fetch_df()
+
+        if not time_column or not time_bucket:
+            raise ValueError("Time column and bucket are required for line/bar charts.")
+
+        time_col_quoted = _quote_identifier(time_column)
+        params: list[Any] = []
+        where_clause = _build_time_range_clause(time_col_quoted, start_time, end_time, params)
+
+        agg_expressions = [
+            f"AVG({_quote_identifier(col)}) AS {_quote_identifier(col)}"
+            for col in value_columns
+        ]
+        agg_clause = ", ".join(agg_expressions)
+
+        # Base query with aggregation and optional time filter
+        base_query = f"""
+            SELECT
+                time_bucket(INTERVAL '{time_bucket}', CAST({time_col_quoted} AS TIMESTAMP)) AS {time_col_quoted},
+                {agg_clause}
+            FROM chart_view
+            {where_clause}
+            GROUP BY 1
+        """
+
+        if interpolation == "none":
+            final_query = f"{base_query} ORDER BY 1"
+            return conn.execute(final_query, params).fetch_df()
+
+        # Interpolation logic using GAPFILL and LOCF
+        if interpolation == "forward_fill":
+            locf_expressions = [
+                f"LOCF({_quote_identifier(col)}) AS {_quote_identifier(col)}"
+                for col in value_columns
+            ]
+            locf_clause = ", ".join(locf_expressions)
+
+            # Flag to identify interpolated rows
+            is_interpolated_cases = [
+                f"({_quote_identifier(col)} IS NULL)"
+                for col in value_columns
+            ]
+            is_interpolated_clause = " AND ".join(is_interpolated_cases)
+
+            final_query = f"""
+                WITH gapfilled AS (
+                    SELECT
+                        time_bucket(INTERVAL '{time_bucket}', CAST({time_col_quoted} AS TIMESTAMP), GAPFILL) AS {time_col_quoted},
+                        {agg_clause}
+                    FROM chart_view
+                    GROUP BY 1
+                )
+                SELECT
+                    {time_col_quoted},
+                    {locf_clause},
+                    ({is_interpolated_clause}) AS is_interpolated
+                FROM gapfilled
+                {where_clause} -- Apply time filter after gap-filling
+                ORDER BY 1
+            """
+            return conn.execute(final_query, params).fetch_df()
+
+        raise ValueError(f"Unsupported interpolation method: {interpolation}")
+
+def _build_time_range_clause(
+    time_col: str, start_time: str | None, end_time: str | None, params: List[Any]
+) -> str:
+    """Build a WHERE clause for time range filtering."""
+    clauses = []
+    if start_time:
+        clauses.append(f"{time_col} >= ?")
+        params.append(start_time)
+    if end_time:
+        clauses.append(f"{time_col} <= ?")
+        params.append(end_time)
+
+    if not clauses:
+        return ""
+    return " WHERE " + " AND ".join(clauses)

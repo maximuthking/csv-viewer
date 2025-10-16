@@ -131,3 +131,29 @@ class SummaryResponse(BaseModel):
     summaries: List[ColumnSummary]
 
 
+class ChartDataRequest(BaseModel):
+    """차트 데이터 요청 스키마."""
+
+    path: str
+    chart_type: str = Field("line", description="e.g., 'line', 'bar', 'scatter'")
+    time_column: Optional[str] = None  # scatter 에서는 사용되지 않을 수 있음
+    value_columns: List[str]
+    time_bucket: str = Field("1 day", description="e.g., '1 minute', '1 hour', '1 day'")
+    interpolation: str = Field("none", description="e.g., 'none', 'forward_fill'")
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+    @field_validator("value_columns")
+    @classmethod
+    def validate_value_columns(cls, value: List[str]) -> List[str]:
+        """값 컬럼은 최소 1개 이상이어야 한다."""
+        if not value:
+            raise ValueError("하나 이상의 value column이 필요합니다.")
+        return value
+
+
+class ChartDataResponse(BaseModel):
+    """차트 데이터 응답 스키마."""
+
+    columns: List[str]
+    rows: List[dict[str, Any]]
