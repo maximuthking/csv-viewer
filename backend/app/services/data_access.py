@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Sequence
+from datetime import date, datetime, time
 
 import duckdb
 import pandas as pd
@@ -308,6 +309,15 @@ def _is_numeric_dtype(dtype: str) -> bool:
     return any(normalized.startswith(prefix) for prefix in NUMERIC_TYPES)
 
 
+def _serialize_value(value: Any) -> Any:
+    """DuckDB에서 반환된 값을 JSON 직렬화 가능한 형태로 변환한다."""
+
+    if isinstance(value, (datetime, date, time)):
+        # DuckDB는 time 타입도 지원하므로 ISO 포맷으로 통일
+        return value.isoformat()
+    return value
+
+
 def summarize_csv(
     csv_path: Path | str,
     *,
@@ -387,8 +397,8 @@ def summarize_csv(
                     null_count=nulls,
                     non_null_count=non_null,
                     distinct_count=distinct,
-                    min_value=min_value,
-                    max_value=max_value,
+                    min_value=_serialize_value(min_value),
+                    max_value=_serialize_value(max_value),
                     mean_value=mean_value,
                     stddev_value=stddev_value,
                 )

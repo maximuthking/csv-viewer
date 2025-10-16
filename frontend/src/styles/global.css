@@ -1,0 +1,63 @@
+:root {
+  color-scheme: light dark;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+  background-color: var(--surface-background);
+  color: var(--text-primary);
+  --surface-background: #111827;
+  --surface-panel: #1f2937;
+  --surface-panel-light: #f9fafb;
+  --text-primary: #f9fafb;
+  --text-secondary: #94a3b8;
+  --accent: #38bdf8;
+  --accent-strong: #0ea5e9;
+  --border: rgba(148, 163, 184, 0.2);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface-background: #f9fafb;
+    --surface-panel: #ffffff;
+    --surface-panel-light: #f3f4f6;
+    --text-primary: #111827;
+    --text-secondary: #475569;
+    --border: rgba(15, 23, 42, 0.1);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background-color: var(--surface-background);
+  color: var(--text-primary);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}

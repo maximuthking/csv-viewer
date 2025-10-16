@@ -1,0 +1,87 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--surface-panel);
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.reloadButton {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.reloadButton:hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+.gridWrapper {
+  position: relative;
+  height: 440px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e2e8f0;
+  font-weight: 600;
+  backdrop-filter: blur(2px);
+}
+
+.error {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: rgba(248, 113, 113, 0.2);
+  color: #fecaca;
+}
+
+.nullableCell {
+  opacity: 0.9;
+}
+
+@media (prefers-color-scheme: light) {
+  .loadingOverlay {
+    background: rgba(148, 163, 184, 0.25);
+    color: #0f172a;
+  }
+
+  .error {
+    color: #991b1b;
+  }
+}
