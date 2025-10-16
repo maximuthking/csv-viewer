@@ -4,6 +4,7 @@ import type {
   GridReadyEvent,
   SortChangedEvent,
   FilterChangedEvent,
+  FilterModel,
   ITextFilterParams
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
@@ -27,8 +28,6 @@ type DataPreviewGridProps = {
   onFilterChange: (filters: FilterSpec[]) => void;
   onReload: () => void;
 };
-
-type ColumnFilters = Record<string, FilterSpec>;
 
 export function DataPreviewGrid({
   schema,
@@ -90,29 +89,28 @@ export function DataPreviewGrid({
   const onGridReady = useCallback(
     (event: GridReadyEvent) => {
       const { api } = event;
+
       if (sort.length > 0) {
-        api.setSortModel(
-          sort.map((item) => ({
+        api.applyColumnState({
+          defaultState: { sort: null, sortIndex: null },
+          state: sort.map((item, index) => ({
             colId: item.column,
-            sort: item.direction
+            sort: item.direction,
+            sortIndex: index
           }))
-        );
+        });
       }
+
       if (filters.length > 0) {
-        const model: ColumnFilters = {};
-        filters.forEach((item) => {
-          model[item.column] = item;
-        });
-        Object.entries(model).forEach(([column, filterSpec]) => {
-          const filterInstance = api.getFilterInstance(column);
-          if (filterInstance && "setModel" in filterInstance) {
-            filterInstance.setModel({
-              type: "contains",
-              filter: String(filterSpec.value ?? "")
-            });
-          }
-        });
-        api.onFilterChanged();
+        const model = filters.reduce<FilterModel>((acc, filterSpec) => {
+          acc[filterSpec.column] = {
+            filterType: "text",
+            type: "contains",
+            filter: String(filterSpec.value ?? "")
+          };
+          return acc;
+        }, {});
+        api.setFilterModel(model);
       }
     },
     [filters, sort]
@@ -120,39 +118,49 @@ export function DataPreviewGrid({
 
   const handleSortChanged = useCallback(
     (event: SortChangedEvent) => {
-      const model = event.api.getSortModel();
-      onSortChange(
-        model.map((item) => ({
-          column: item.colId ?? item.colId,
-          direction: item.sort ?? "asc"
-        })) as SortSpec[]
-      );
+      const columnState = event.api
+        .getColumnState()
+        .filter((state) => !!state.sort)
+        .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+
+      const nextSort: SortSpec[] = columnState.map((state) => ({
+        column: state.colId,
+        direction: (state.sort ?? "asc") as SortSpec["direction"]
+      }));
+
+      onSortChange(nextSort);
     },
     [onSortChange]
   );
 
   const handleFilterChanged = useCallback(
     (event: FilterChangedEvent) => {
-      const api = event.api;
-      const appliedFilters: FilterSpec[] = [];
-
-      columnDefs.forEach((col) => {
-        if (!col.field) {
-          return;
+      const filterModel = event.api.getFilterModel();
+      const appliedFilters: FilterSpec[] = Object.entries(filterModel).flatMap(
+        ([columnId, model]) => {
+          if (model == null || typeof model !== "object") {
+            return [];
+          }
+          const candidate = model as {
+            filter?: string | number | null;
+            type?: string | null;
+          };
+          if (!candidate.filter) {
+            return [];
+          }
+          return [
+            {
+              column: columnId,
+              operator: "contains",
+              value: candidate.filter
+            } satisfies FilterSpec
+          ];
         }
-        const filterModel = api.getFilterModel()[col.field];
-        if (filterModel && filterModel.filter) {
-          appliedFilters.push({
-            column: col.field,
-            operator: "contains",
-            value: filterModel.filter
-          });
-        }
-      });
+      );
 
       onFilterChange(appliedFilters);
     },
-    [columnDefs, onFilterChange]
+    [onFilterChange]
   );
 
   return (

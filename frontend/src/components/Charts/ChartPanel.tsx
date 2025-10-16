@@ -102,45 +102,137 @@ export function ChartPanel() {
         return Number.isFinite(numeric) ? numeric : null;
       };
 
+      const parseTimeBucketToMs = (bucket: string | undefined): number | null => {
+        if (!bucket) {
+          return null;
+        }
+        const match = bucket.trim().toLowerCase().match(/^(\d+)\s*(minute|minutes|hour|hours|day|days|week|weeks)$/);
+        if (!match) {
+          return null;
+        }
+        const amount = Number(match[1]);
+        if (!Number.isFinite(amount)) {
+          return null;
+        }
+        const unit = match[2];
+        const minuteMs = 60 * 1000;
+        switch (unit) {
+          case "minute":
+          case "minutes":
+            return amount * minuteMs;
+          case "hour":
+          case "hours":
+            return amount * 60 * minuteMs;
+          case "day":
+          case "days":
+            return amount * 24 * 60 * minuteMs;
+          case "week":
+          case "weeks":
+            return amount * 7 * 24 * 60 * minuteMs;
+          default:
+            return null;
+        }
+      };
+
+      const axisValueToTimestamp = (axisValue: string | number | Date): number | null => {
+        if (typeof axisValue === "number") {
+          return Number.isFinite(axisValue) ? axisValue : null;
+        }
+        if (typeof axisValue === "string") {
+          const parsed = Date.parse(axisValue);
+          return Number.isNaN(parsed) ? null : parsed;
+        }
+        if (axisValue instanceof Date) {
+          return axisValue.getTime();
+        }
+        return null;
+      };
+
+      const bucketSizeMs = parseTimeBucketToMs(time_bucket);
+
       const baseSeries = value_columns.map((col) => {
-        const seriesPoints = data.reduce<Array<{ value: [string | number | Date, number]; rowIndex: number }>>(
+        type SeriesPoint = {
+          axisValue: string | number | Date;
+          numericValue: number;
+          rowIndex: number;
+          isInterpolated: boolean;
+          timestamp: number | null;
+        };
+
+        const seriesPoints = data.reduce<SeriesPoint[]>(
           (acc, row, rowIndex) => {
             const x = coerceToAxisValue(row[safeTimeColumn]);
             const y = coerceToNumber(row[col]);
             if (x === null || y === null) {
               return acc;
             }
-            acc.push({ value: [x, y], rowIndex });
+            const isInterpolated = Boolean(
+              typeof row === "object" && row !== null
+                ? (row as Record<string, unknown>)["is_interpolated"]
+                : false
+            );
+            const timestamp = axisValueToTimestamp(x);
+            acc.push({
+              axisValue: x,
+              numericValue: y,
+              rowIndex,
+              isInterpolated,
+              timestamp
+            });
             return acc;
           },
           []
         );
-        const normalizedData = seriesPoints.map((point) => point.value);
 
         if (chart_type === "line") {
-          const indexLookup = seriesPoints.map((point) => point.rowIndex);
+          type LineDatum = {
+            value: [string | number | Date, number | null];
+            symbolSize: number;
+            itemStyle: { color: string };
+          };
+
+          const seriesDataWithGaps: Array<LineDatum | null> = [];
+          let previousTimestamp: number | null = null;
+
+          seriesPoints.forEach((point, index) => {
+            const isGap =
+              index > 0 &&
+              bucketSizeMs &&
+              previousTimestamp !== null &&
+              point.timestamp !== null &&
+              point.timestamp - previousTimestamp > bucketSizeMs * 1.5;
+
+            if (isGap) {
+              seriesDataWithGaps.push(null);
+            }
+
+            const symbolSize = point.isInterpolated ? 3 : 8;
+            seriesDataWithGaps.push({
+              value: [point.axisValue, point.numericValue],
+              symbolSize,
+              itemStyle: { color: "#1976d2" }
+            });
+
+            previousTimestamp = point.timestamp;
+          });
+
           const lineSeries: SeriesOption = {
             name: col,
             type: "line",
-            data: normalizedData,
-            symbolSize: (_value, params) => {
-              const originalIndex = indexLookup[params.dataIndex];
-              const originalRow = typeof originalIndex === "number" ? data[originalIndex] : undefined;
-              const isInterpolated =
-                typeof originalRow === "object" && originalRow !== null
-                  ? Boolean((originalRow as Record<string, unknown>)["is_interpolated"])
-                  : false;
-              return isInterpolated ? 0 : 6;
-            },
-            smooth: true
+            data: seriesDataWithGaps,
+            smooth: true,
+            connectNulls: false,
+            lineStyle: { color: "#1976d2", width: 2 },
+            itemStyle: { color: "#1976d2" }
           };
+
           return lineSeries;
         }
 
         const barSeries: SeriesOption = {
           name: col,
           type: "bar",
-          data: normalizedData
+          data: seriesPoints.map((point) => [point.axisValue, point.numericValue])
         };
         return barSeries;
       });
