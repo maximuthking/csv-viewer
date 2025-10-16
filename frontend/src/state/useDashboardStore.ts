@@ -192,7 +192,9 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       set({
         preview: {
           ...preview,
-          ...result,
+          rows: result.rows,
+          columns: result.columns,
+          totalRows: result.total_rows,
           isLoading: false,
           error: undefined
         }
