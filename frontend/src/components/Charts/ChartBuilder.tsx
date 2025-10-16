@@ -12,9 +12,11 @@ type ChartMetricInput = {
 type ChartBuilderProps = {
   schema: ColumnSchema[];
   data: Array<Record<string, unknown>>;
+  limit: number;
   isLoading: boolean;
   error?: string;
-  onRun: (dimensions: string[], metric: ChartMetricInput) => void;
+  onRun: (dimensions: string[], metric: ChartMetricInput, limit: number) => void;
+  onLimitChange: (limit: number) => void;
 };
 
 const AGGREGATIONS = [
@@ -26,12 +28,22 @@ const AGGREGATIONS = [
 ] as const;
 
 const NUMERIC_HINTS = ["INT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC", "REAL"];
+const LIMIT_OPTIONS = [50, 100, 200, 500, 1000];
 
-export function ChartBuilder({ schema, data, isLoading, error, onRun }: ChartBuilderProps) {
+export function ChartBuilder({
+  schema,
+  data,
+  limit,
+  isLoading,
+  error,
+  onRun,
+  onLimitChange
+}: ChartBuilderProps) {
   const [dimensionA, setDimensionA] = useState<string>("");
   const [dimensionB, setDimensionB] = useState<string>("");
   const [aggregation, setAggregation] = useState<string>("count");
   const [metricColumn, setMetricColumn] = useState<string>("");
+  const [localLimit, setLocalLimit] = useState<number>(limit);
 
   useEffect(() => {
     if (schema.length === 0) {
@@ -47,6 +59,10 @@ export function ChartBuilder({ schema, data, isLoading, error, onRun }: ChartBui
       schema.find((column) => isNumeric(column.dtype))?.name ?? schema[0]?.name ?? "";
     setMetricColumn((current) => current || numericCandidate);
   }, [schema]);
+
+  useEffect(() => {
+    setLocalLimit(limit);
+  }, [limit]);
 
   const categoryColumns = schema.map((column) => column.name);
   const metricColumns = schema.map((column) => column.name);
@@ -137,7 +153,7 @@ export function ChartBuilder({ schema, data, isLoading, error, onRun }: ChartBui
         <div>
           <h2 className={styles.title}>Chart Explorer</h2>
           <p className={styles.subtitle}>
-            Choose dimensions and an aggregation to visualize grouped insights.
+            Choose dimensions and an aggregation to visualize grouped insights. Large datasets are sampled by limiting the number of grouped results.
           </p>
         </div>
         <div className={styles.controls}>
@@ -207,26 +223,50 @@ export function ChartBuilder({ schema, data, isLoading, error, onRun }: ChartBui
               </select>
             </label>
           ) : null}
+          <label>
+            Group limit
+            <select
+              value={localLimit}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setLocalLimit(value);
+                onLimitChange(value);
+              }}
+            >
+              {LIMIT_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option.toLocaleString()} groups
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => {
               if (!canRun) {
                 return;
               }
-              onRun([dimensionA, dimensionB].filter(Boolean) as string[], {
-                agg: aggregation,
-                column:
-                  aggregation === "count" && !metricColumn
-                    ? undefined
-                    : metricColumn || undefined,
-                alias: chartMetricAlias
-              });
+              onRun(
+                [dimensionA, dimensionB].filter(Boolean) as string[],
+                {
+                  agg: aggregation,
+                  column:
+                    aggregation === "count" && !metricColumn
+                      ? undefined
+                      : metricColumn || undefined,
+                  alias: chartMetricAlias
+                },
+                localLimit
+              );
             }}
             disabled={!canRun || isLoading}
           >
             Run
           </button>
         </div>
+        <p className={styles.helper}>
+          Rendering up to {localLimit.toLocaleString()} grouped results. Increase cautiously when working with multi-million row datasets.
+        </p>
       </header>
       {error ? <div className={styles.error}>{error}</div> : null}
       <PlotlyChart data={plotData} layout={layout} isLoading={isLoading} />

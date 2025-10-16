@@ -23,6 +23,7 @@ export function DashboardPage() {
     refreshPreview,
     refreshSummary,
     refreshChart,
+    setChartLimit,
     setPage,
     setPageSize,
     updateSort,
@@ -42,6 +43,7 @@ export function DashboardPage() {
     refreshPreview: state.refreshPreview,
     refreshSummary: state.refreshSummary,
     refreshChart: state.refreshChart,
+    setChartLimit: state.setChartLimit,
     setPage: state.setPage,
     setPageSize: state.setPageSize,
     updateSort: state.updateSort,
@@ -115,16 +117,18 @@ export function DashboardPage() {
             <ChartBuilder
               schema={schema}
               data={chart.data}
+              limit={chart.limit}
               isLoading={chart.isLoading}
               error={chart.error}
-              onRun={(dimensions, metric) =>
+              onLimitChange={(value) => void setChartLimit(value)}
+              onRun={(dimensions, metric, limitValue) =>
                 void refreshChart(dimensions, [
                   {
                     name: metric.alias,
                     agg: metric.agg,
                     column: metric.column ?? null
                   }
-                ])
+                ], limitValue)
               }
             />
           </div>

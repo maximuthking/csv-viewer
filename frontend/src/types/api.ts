@@ -53,6 +53,7 @@ export type ChartRequest = {
     column?: string | null;
   }>;
   filters?: PreviewRequest["filters"];
+  limit?: number;
 };
 
 export type ChartResponse = {

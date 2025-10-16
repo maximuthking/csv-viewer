@@ -15,6 +15,10 @@ from . import schemas
 
 router = APIRouter(prefix="/v1", tags=["csv"])
 
+DEFAULT_CHART_LIMIT = 200
+MAX_CHART_LIMIT = 1000
+MIN_CHART_LIMIT = 10
+
 
 def _to_filter_specs(items: List[schemas.FilterSpec]) -> List[data_access.FilterSpec]:
     """Pydantic 필터 스펙을 데이터 접근 레이어 스펙으로 변환."""
@@ -164,13 +168,16 @@ async def chart(request: schemas.ChartRequest) -> schemas.ChartResponse:
     else:
         metrics = [("row_count", "count", None)]
 
+    effective_limit = request.limit or DEFAULT_CHART_LIMIT
+    effective_limit = max(MIN_CHART_LIMIT, min(effective_limit, MAX_CHART_LIMIT))
+
     try:
         df = data_access.chart_aggregate(
             request.path,
             dimensions=request.dimensions,
             metrics=metrics,
             filters=filters,
-            limit=request.limit,
+            limit=effective_limit,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

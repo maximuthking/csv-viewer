@@ -23,6 +23,12 @@ class AppSettings:
     duckdb_sample_size: int = field(
         default_factory=lambda: int(os.getenv("DUCKDB_SAMPLE_SIZE", "100000"))
     )
+    auto_convert_to_parquet: bool = field(
+        default_factory=lambda: os.getenv("AUTO_CONVERT_TO_PARQUET", "1") not in {"0", "false", "False"}
+    )
+    parquet_row_group_size: int = field(
+        default_factory=lambda: int(os.getenv("PARQUET_ROW_GROUP_SIZE", "100000"))
+    )
 
     def ensure_directories(self) -> None:
         """Create required directories if they do not exist yet."""

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any, List, Sequence
-from datetime import date, datetime, time
 
 import duckdb
 import pandas as pd
@@ -57,15 +57,33 @@ class ColumnSummary:
 
 
 def list_csv_files(patterns: Sequence[str] | None = None) -> List[Path]:
-    """Return CSV files located inside the configured data directory."""
+    """Return data files located inside the configured data directory.
+
+    Includes both CSV and Parquet files by default. When auto conversion is enabled,
+    missing or outdated Parquet counterparts are generated on the fly.
+    """
 
     settings = get_settings()
     base = settings.csv_data_dir
-    resolved_patterns = list(patterns) if patterns else ["*.csv"]
+    resolved_patterns = list(patterns) if patterns else ["*.csv", "*.parquet"]
 
     matches: set[Path] = set()
     for pattern in resolved_patterns:
         matches.update(base.glob(pattern))
+
+    if settings.auto_convert_to_parquet:
+        for path in list(matches):
+            if path.suffix.lower() != ".csv":
+                continue
+
+            parquet_path = path.with_suffix(".parquet")
+            try:
+                _ensure_parquet_cache(path, parquet_path)
+            except Exception:  # pragma: no cover - safeguard to avoid aborting listing
+                continue
+            else:
+                matches.add(parquet_path)
+                matches.discard(path)
 
     return sorted(path for path in matches if path.is_file())
 
@@ -88,13 +106,47 @@ def _register_csv_view(
     effective_sample = sample_size or settings.duckdb_sample_size
 
     csv_literal = str(target).replace("'", "''")
-    conn.execute(
-        f"""
-        CREATE OR REPLACE TEMP VIEW {view_name} AS
-        SELECT *
-        FROM read_csv_auto('{csv_literal}', SAMPLE_SIZE={int(effective_sample)})
-        """
-    )
+    if target.suffix.lower() == ".parquet":
+        conn.execute(
+            f"""
+            CREATE OR REPLACE TEMP VIEW {view_name} AS
+            SELECT *
+            FROM read_parquet('{csv_literal}')
+            """
+        )
+    else:
+        conn.execute(
+            f"""
+            CREATE OR REPLACE TEMP VIEW {view_name} AS
+            SELECT *
+            FROM read_csv_auto('{csv_literal}', SAMPLE_SIZE={int(effective_sample)})
+            """
+        )
+
+
+def _ensure_parquet_cache(csv_path: Path, parquet_path: Path) -> None:
+    """Ensure a Parquet copy exists and is up-to-date for the given CSV."""
+
+    if parquet_path.exists() and parquet_path.stat().st_mtime >= csv_path.stat().st_mtime:
+        return
+
+    settings = get_settings()
+    parquet_path.parent.mkdir(parents=True, exist_ok=True)
+
+    csv_literal = str(csv_path).replace("'", "''")
+    parquet_literal = str(parquet_path).replace("'", "''")
+
+    with duckdb_connection() as conn:
+        conn.execute(
+            f"""
+            COPY (
+                SELECT *
+                FROM read_csv_auto('{csv_literal}', SAMPLE_SIZE={int(settings.duckdb_sample_size)})
+            )
+            TO '{parquet_literal}'
+            (FORMAT 'parquet', ROW_GROUP_SIZE {int(settings.parquet_row_group_size)})
+            """
+        )
 
 
 def describe_csv(csv_path: Path | str, *, sample_size: int | None = None) -> List[ColumnSchema]:

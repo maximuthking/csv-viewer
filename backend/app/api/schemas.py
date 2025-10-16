@@ -148,7 +148,12 @@ class ChartRequest(BaseModel):
     dimensions: List[str] = Field(..., min_items=1, max_items=2)
     metrics: List[ChartMetric] = Field(default_factory=list)
     filters: List[FilterSpec] = Field(default_factory=list)
-    limit: Optional[int] = Field(None, ge=1, le=5000)
+    limit: Optional[int] = Field(
+        200,
+        ge=10,
+        le=1000,
+        description="그룹핑 결과 상한. 기본값 200, 최대 1000",
+    )
 
 
 class ChartResponse(BaseModel):

@@ -44,6 +44,9 @@ type ChartState = {
   data: ChartResponse["series"];
   isLoading: boolean;
   error?: string;
+  limit: number;
+  dimensions: string[];
+  metrics: Array<{ name: string; agg: string; column?: string | null }>;
 };
 
 type DashboardState = {
@@ -64,7 +67,12 @@ type DashboardState = {
   updateSort: (sort: SortSpec[]) => Promise<void>;
   updateFilters: (filters: FilterSpec[]) => Promise<void>;
   refreshSummary: () => Promise<void>;
-  refreshChart: (dimensions: string[], metrics: Array<{ name: string; agg: string; column?: string | null }>) => Promise<void>;
+  refreshChart: (
+    dimensions: string[],
+    metrics: Array<{ name: string; agg: string; column?: string | null }>,
+    limitOverride?: number
+  ) => Promise<void>;
+  setChartLimit: (limit: number) => Promise<void>;
 };
 
 const initialPreviewState: PreviewState = {
@@ -85,7 +93,10 @@ const initialSummaryState: SummaryState = {
 
 const initialChartState: ChartState = {
   data: [],
-  isLoading: false
+  isLoading: false,
+  limit: 200,
+  dimensions: [],
+  metrics: []
 };
 
 export const useDashboardStore = create<DashboardState>((set, get) => ({
@@ -96,7 +107,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   filesError: undefined,
   preview: initialPreviewState,
   summary: initialSummaryState,
-  chart: initialChartState,
+  chart: { ...initialChartState, data: [], metrics: [], dimensions: [] },
   async init() {
     set({ filesLoading: true, filesError: undefined });
     try {
@@ -122,7 +133,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       schema: [],
       preview: { ...initialPreviewState, isLoading: true },
       summary: { ...initialSummaryState, isLoading: true },
-      chart: initialChartState
+      chart: { ...initialChartState, data: [], metrics: [], dimensions: [] }
     });
 
     const updateRecent = (prev: string[]) => {
@@ -250,36 +261,71 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       });
     }
   },
-  async refreshChart(dimensions, metrics) {
-    const { selectedPath, preview } = get();
+  async refreshChart(dimensions, metrics, limitOverride) {
+    const { selectedPath, preview, chart } = get();
     if (!selectedPath) {
       return;
     }
-    set({
-      chart: { ...initialChartState, isLoading: true }
-    });
+
+    const normalizedLimit = Math.max(10, Math.min(limitOverride ?? chart.limit ?? 200, 1000));
+
+    set((state) => ({
+      chart: {
+        ...state.chart,
+        isLoading: true,
+        error: undefined,
+        limit: normalizedLimit,
+        dimensions,
+        metrics
+      }
+    }));
 
     try {
       const response = await fetchChart({
         path: selectedPath,
         dimensions,
         metrics,
-        filters: preview.filters
+        filters: preview.filters,
+        limit: normalizedLimit
       });
-      set({
-        chart: { data: response.series, isLoading: false }
-      });
-    } catch (error) {
-      set({
+      set((state) => ({
         chart: {
-          ...initialChartState,
+          ...state.chart,
+          data: response.series,
           isLoading: false,
+          error: undefined,
+          limit: normalizedLimit,
+          dimensions,
+          metrics
+        }
+      }));
+    } catch (error) {
+      set((state) => ({
+        chart: {
+          ...state.chart,
+          isLoading: false,
+          limit: normalizedLimit,
+          dimensions,
+          metrics,
           error:
             error instanceof Error
               ? error.message
               : "Failed to load chart data."
         }
-      });
+      }));
+    }
+  },
+  async setChartLimit(limit) {
+    const normalizedLimit = Math.max(10, Math.min(limit, 1000));
+    const { chart } = get();
+    set((state) => ({
+      chart: {
+        ...state.chart,
+        limit: normalizedLimit
+      }
+    }));
+    if (chart.dimensions.length > 0 && chart.metrics.length > 0) {
+      await get().refreshChart(chart.dimensions, chart.metrics, normalizedLimit);
     }
   }
 }));

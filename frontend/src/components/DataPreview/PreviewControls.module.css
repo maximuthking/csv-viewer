@@ -48,8 +48,8 @@
   border-radius: 0.5rem;
   border: 1px solid var(--border);
   padding: 0.35rem 0.75rem;
-  background: var(--surface-panel-light);
-  color: var(--text-primary);
+  background: rgba(249, 250, 251, 0.95);
+  color: #0f172a;
 }
 
 @media (max-width: 960px) {
@@ -58,3 +58,11 @@
     align-items: flex-start;
   }
 }
+@media (prefers-color-scheme: dark) {
+  .pageSize select {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.4);
+    color: #f8fafc;
+  }
+}
+
