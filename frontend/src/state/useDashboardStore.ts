@@ -105,7 +105,7 @@ const initialChartState: ChartState = {
     chart_type: "line",
     time_column: null,
     value_columns: [],
-    time_bucket: "1 day",
+    time_bucket: "5 minutes",
     interpolation: "none"
   },
   isLoading: false

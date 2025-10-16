@@ -317,7 +317,7 @@ export function ChartPanel() {
     const dataZoom = isTimeSeries
       ? [
           { type: "inside", xAxisIndex: 0 },
-          { type: "slider", xAxisIndex: 0, height: 18, bottom: 8 }
+          { type: "slider", xAxisIndex: 0, height: 36, bottom: 16 }
         ]
       : [
           { type: "inside", xAxisIndex: 0 },
@@ -333,7 +333,7 @@ export function ChartPanel() {
       }
     };
 
-    const gridBottom = isTimeSeries ? 60 : 24;
+    const gridBottom = isTimeSeries ? 96 : 24;
 
     return {
       grid: { top: 80, right: 24, bottom: gridBottom, left: 60, containLabel: true },
@@ -461,7 +461,7 @@ export function ChartPanel() {
         ) : (
           <ReactECharts
             option={options}
-            style={{ height: '400px', width: '100%' }}
+            style={{ height: '890px', width: '100%' }}
             notMerge
             lazyUpdate
           />

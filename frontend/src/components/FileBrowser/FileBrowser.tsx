@@ -1,11 +1,9 @@
-import { useMemo } from "react";
 import clsx from "clsx";
 import styles from "./FileBrowser.module.css";
 import type { CsvFileInfo } from "../../types/api";
 
 type FileBrowserProps = {
   files: CsvFileInfo[];
-  recentFiles: string[];
   selectedPath?: string;
   isLoading: boolean;
   error?: string;
@@ -15,15 +13,12 @@ type FileBrowserProps = {
 
 export function FileBrowser({
   files,
-  recentFiles,
   selectedPath,
   isLoading,
   error,
   onSelect,
   onReload
 }: FileBrowserProps) {
-  const recentSet = useMemo(() => new Set(recentFiles), [recentFiles]);
-
   return (
     <aside className={styles.browser}>
       <div className={styles.header}>
@@ -50,7 +45,7 @@ export function FileBrowser({
         <ul className={styles.list}>
           {files.map((file) => {
             const isSelected = selectedPath === file.path;
-            const isRecent = recentSet.has(file.path);
+            const displayName = stripExtension(file.name);
             return (
               <li key={file.path}>
                 <button
@@ -59,8 +54,7 @@ export function FileBrowser({
                   onClick={() => onSelect(file.path)}
                 >
                   <div className={styles.itemHeader}>
-                    <span className={styles.fileName}>{file.name}</span>
-                    {isRecent && <span className={styles.recentBadge}>RECENT</span>}
+                    <span className={styles.fileName}>{displayName}</span>
                   </div>
                   <dl className={styles.meta}>
                     <div>
@@ -102,4 +96,12 @@ function formatDate(input: string): string {
     return "-";
   }
   return date.toLocaleString();
+}
+
+function stripExtension(name: string): string {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex <= 0) {
+    return name;
+  }
+  return name.slice(0, dotIndex);
 }

@@ -19,7 +19,6 @@ export function DashboardPage() {
 
   const {
     files,
-    recentFiles,
     selectedPath,
     schema,
     filesLoading,
@@ -36,7 +35,6 @@ export function DashboardPage() {
     updateFilters
   } = useDashboardStore((state) => ({
     files: state.files,
-    recentFiles: state.recentFiles,
     selectedPath: state.selectedPath,
     schema: state.schema,
     filesLoading: state.filesLoading,
@@ -81,7 +79,6 @@ export function DashboardPage() {
       <div className={styles.layout}>
         <FileBrowser
           files={files}
-          recentFiles={recentFiles}
           selectedPath={selectedPath}
           isLoading={filesLoading}
           error={filesError}
