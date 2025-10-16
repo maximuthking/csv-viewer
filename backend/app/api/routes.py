@@ -148,3 +148,27 @@ async def summary(request: schemas.SummaryRequest) -> schemas.SummaryResponse:
         ]
     )
 
+
+@router.post("/chart-data", response_model=schemas.ChartDataResponse)
+async def get_chart_data(request: schemas.ChartDataRequest) -> schemas.ChartDataResponse:
+    """차트 시각화를 위한 집계 데이터를 반환한다."""
+
+    try:
+        df = data_access.get_chart_data(
+            csv_path=request.path,
+            chart_type=request.chart_type,
+            time_column=request.time_column,
+            value_columns=request.value_columns,
+            time_bucket=request.time_bucket,
+            interpolation=request.interpolation,
+            start_time=request.start_time,
+            end_time=request.end_time,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    rows = df.to_dict(orient="records")
+    columns = list(df.columns)
+    return schemas.ChartDataResponse(rows=rows, columns=columns)
