@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileBrowser } from "../components/FileBrowser/FileBrowser";
 import { DataPreviewGrid } from "../components/DataPreview/DataPreviewGrid";
 import { PreviewControls } from "../components/DataPreview/PreviewControls";
@@ -7,7 +7,16 @@ import { useDashboardStore } from "../state/useDashboardStore";
 import styles from "./DashboardPage.module.css";
 import { ChartPanel } from "../components/Charts/ChartPanel";
 
+type TabKey = "data" | "chart" | "summary";
+
+const TAB_ITEMS: ReadonlyArray<{ id: TabKey; label: string }> = [
+  { id: "data", label: "Data Preview" },
+  { id: "chart", label: "Chart" },
+  { id: "summary", label: "Summary Statistics" }
+];
+
 export function DashboardPage() {
+
   const {
     files,
     recentFiles,
@@ -48,6 +57,8 @@ export function DashboardPage() {
     void init();
   }, [init]);
 
+  const [activeTab, setActiveTab] = useState<TabKey>("data");
+
   const subtitle = useMemo(() => {
     if (!selectedPath) {
       return "Select a file to explore preview data.";
@@ -78,37 +89,88 @@ export function DashboardPage() {
           onReload={() => void init()}
         />
         <div className={styles.mainContent}>
-          <DataPreviewGrid
-            schema={schema}
-            rows={preview.rows}
-            totalRows={preview.totalRows}
-            page={preview.page}
-            pageSize={preview.pageSize}
-            isLoading={preview.isLoading}
-            error={preview.error}
-            sort={preview.sort}
-            filters={preview.filters}
-            onSortChange={(model) => void updateSort(model)}
-            onFilterChange={(model) => void updateFilters(model)}
-            onReload={() => void refreshPreview()}
-          />
-          <PreviewControls
-            page={preview.page}
-            pageSize={preview.pageSize}
-            totalRows={preview.totalRows}
-            isLoading={preview.isLoading}
-            onPageChange={(page) => void setPage(page)}
-            onPageSizeChange={(size) => void setPageSize(size)}
-          />
-          <div className={styles.analytics}>
-            <SummaryPanel
-              schema={schema}
-              summaries={summary.data}
-              isLoading={summary.isLoading}
-              error={summary.error}
-              onRefresh={() => void refreshSummary()}
-            />
-            <ChartPanel />
+          <div className={styles.tabContainer}>
+            <div className={styles.tabList} role="tablist" aria-label="Data exploration views">
+              {TAB_ITEMS.map((tab) => {
+                const isActive = activeTab === tab.id;
+                const tabId = `${tab.id}-tab`;
+                const panelId = `${tab.id}-panel`;
+
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={tabId}
+                    aria-selected={isActive}
+                    aria-controls={panelId}
+                    className={`${styles.tab} ${isActive ? styles.tabActive : ""}`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className={styles.tabContent}>
+              {activeTab === "data" ? (
+                <div
+                  id="data-panel"
+                  role="tabpanel"
+                  aria-labelledby="data-tab"
+                  className={styles.tabPanel}
+                >
+                  <DataPreviewGrid
+                    schema={schema}
+                    rows={preview.rows}
+                    totalRows={preview.totalRows}
+                    page={preview.page}
+                    pageSize={preview.pageSize}
+                    isLoading={preview.isLoading}
+                    error={preview.error}
+                    sort={preview.sort}
+                    filters={preview.filters}
+                    onSortChange={(model) => void updateSort(model)}
+                    onFilterChange={(model) => void updateFilters(model)}
+                    onReload={() => void refreshPreview()}
+                  />
+                  <PreviewControls
+                    page={preview.page}
+                    pageSize={preview.pageSize}
+                    totalRows={preview.totalRows}
+                    isLoading={preview.isLoading}
+                    onPageChange={(page) => void setPage(page)}
+                    onPageSizeChange={(size) => void setPageSize(size)}
+                  />
+                </div>
+              ) : null}
+              {activeTab === "chart" ? (
+                <div
+                  id="chart-panel"
+                  role="tabpanel"
+                  aria-labelledby="chart-tab"
+                  className={styles.tabPanel}
+                >
+                  <ChartPanel />
+                </div>
+              ) : null}
+              {activeTab === "summary" ? (
+                <div
+                  id="summary-panel"
+                  role="tabpanel"
+                  aria-labelledby="summary-tab"
+                  className={styles.tabPanel}
+                >
+                  <SummaryPanel
+                    schema={schema}
+                    summaries={summary.data}
+                    isLoading={summary.isLoading}
+                    error={summary.error}
+                    onRefresh={() => void refreshSummary()}
+                  />
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
