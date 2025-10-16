@@ -179,11 +179,34 @@ export function ChartPanel() {
       seriesData = [scatterSeries];
     }
 
+    const dataZoom = isTimeSeries
+      ? [
+          { type: "inside", xAxisIndex: 0 },
+          { type: "slider", xAxisIndex: 0, height: 18, bottom: 8 }
+        ]
+      : [
+          { type: "inside", xAxisIndex: 0 },
+          { type: "inside", yAxisIndex: 0 }
+        ];
+
+    const toolbox = {
+      right: 16,
+      feature: {
+        dataZoom: {},
+        restore: {},
+        saveAsImage: {}
+      }
+    };
+
+    const gridBottom = isTimeSeries ? 60 : 24;
+
     return {
-      grid: { top: 80, right: 24, bottom: 24, left: 60, containLabel: true },
+      grid: { top: 80, right: 24, bottom: gridBottom, left: 60, containLabel: true },
       xAxis,
       yAxis,
       series: seriesData,
+      dataZoom,
+      toolbox,
       tooltip: { trigger: isTimeSeries ? "axis" : "item" },
       legend: isTimeSeries
         ? {
