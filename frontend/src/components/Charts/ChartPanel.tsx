@@ -39,14 +39,7 @@ export function ChartPanel() {
     let yAxis: EChartsOption['yAxis'];
 
     if (isTimeSeries) {
-      xAxis = {
-        type: "category",
-        data: data.map((row) =>
-          typeof row[time_column!] === "string"
-            ? new Date(row[time_column!]).toLocaleString()
-            : String(row[time_column!])
-        )
-      };
+      xAxis = { type: "time" };
       yAxis = { type: "value", scale: true };
       seriesData = value_columns.map((col) => ({
         name: col,
