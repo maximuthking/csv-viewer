@@ -1,0 +1,3260 @@
+Directory structure:
+└── csv-viewer/
+    ├── AGENTS.md
+    ├── run_gitingest.py
+    ├── backend/
+    │   ├── README.md
+    │   ├── __init__.py
+    │   ├── requirements.txt
+    │   ├── .env.example
+    │   ├── app/
+    │   │   ├── __init__.py
+    │   │   ├── main.py
+    │   │   ├── api/
+    │   │   │   ├── __init__.py
+    │   │   │   ├── routes.py
+    │   │   │   └── schemas.py
+    │   │   ├── core/
+    │   │   │   ├── __init__.py
+    │   │   │   └── settings.py
+    │   │   ├── db/
+    │   │   │   ├── __init__.py
+    │   │   │   └── duckdb_session.py
+    │   │   └── services/
+    │   │       ├── __init__.py
+    │   │       └── data_access.py
+    │   └── tests/
+    │       ├── __init__.py
+    │       └── test_data_access.py
+    ├── frontend/
+    │   ├── README.md
+    │   ├── index.html
+    │   ├── package.json
+    │   ├── tsconfig.json
+    │   ├── tsconfig.node.json
+    │   ├── vite.config.ts
+    │   └── src/
+    │       ├── App.tsx
+    │       ├── main.tsx
+    │       ├── vite-env.d.ts
+    │       ├── components/
+    │       │   ├── DataPreview/
+    │       │   │   ├── DataPreviewGrid.module.css
+    │       │   │   ├── DataPreviewGrid.tsx
+    │       │   │   ├── PreviewControls.module.css
+    │       │   │   └── PreviewControls.tsx
+    │       │   ├── FileBrowser/
+    │       │   │   ├── FileBrowser.module.css
+    │       │   │   └── FileBrowser.tsx
+    │       │   └── Summary/
+    │       │       ├── SummaryPanel.module.css
+    │       │       └── SummaryPanel.tsx
+    │       ├── config/
+    │       │   └── env.ts
+    │       ├── pages/
+    │       │   ├── DashboardPage.module.css
+    │       │   └── DashboardPage.tsx
+    │       ├── services/
+    │       │   ├── csvService.ts
+    │       │   └── httpClient.ts
+    │       ├── state/
+    │       │   └── useDashboardStore.ts
+    │       ├── styles/
+    │       │   └── global.css
+    │       └── types/
+    │           └── api.ts
+    └── scripts/
+        ├── README.md
+        ├── convert_to_parquet.py
+        └── duckdb_profile.py
+
+================================================
+FILE: AGENTS.md
+================================================
+1. **언어 규칙**  
+   - 모든 답변과 설명은 반드시 한국어로 작성한다.
+   
+2. **질문 처리**  
+   - 사용자의 요청이 모호할 경우, 바로 구현하지 말고 의도를 명확히 하기 위해 Clarifying Question을 먼저 던진다.
+
+3. **설명 방식**  
+   - 단순히 구현만 하지 않고, “왜 이렇게 구현하는 게 좋은지”를 짧고 명확하게 설명한다.
+
+4. **지원 영역**  
+   - 코드, 아키텍처, UX, 성능, 테스트, 배포 전반에서 도움을 줄 수 있어야 한다.
+
+5. **작업 완료 후 액션**  
+   - 작업이 끝나면, 사용자가 실제로 해야 할 후속 작업을 단계별로 알기 쉽게 설명한다.  
+   - 가능하다면 agent가 직접 실행한다.
+
+6. **테스트 처리**  
+   - 작성된 기능/코드에 대한 테스트 방법을 설명하고, 사용자가 직접 테스트할 수 있도록 안내한다.
+
+
+================================================
+FILE: run_gitingest.py
+================================================
+[Binary file]
+
+
+================================================
+FILE: backend/README.md
+================================================
+# Backend
+
+FastAPI 서비스 및 데이터 접근 레이어 코드를 여기에 배치합니다.
+
+- `app/`: FastAPI 라우터, 서비스 로직
+- `core/`: 설정, 의존성 관리
+- `tests/`: 백엔드 단위 테스트
+
+초기화 단계에서는 의존성 설치와 개발 서버 실행 스크립트를 구성할 예정입니다.
+
+
+
+================================================
+FILE: backend/__init__.py
+================================================
+"""Backend package marker."""
+
+
+
+
+================================================
+FILE: backend/requirements.txt
+================================================
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+duckdb==0.10.2
+polars==1.34.0
+pandas==2.2.3
+python-dotenv==1.0.1
+pytest==8.3.3
+
+
+
+================================================
+FILE: backend/.env.example
+================================================
+[Binary file]
+
+
+================================================
+FILE: backend/app/__init__.py
+================================================
+"""Backend application package."""
+
+
+
+================================================
+FILE: backend/app/main.py
+================================================
+"""FastAPI 애플리케이션 엔트리포인트."""
+
+from __future__ import annotations
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .api import create_api_router
+from .core.settings import get_settings
+
+
+def create_app() -> FastAPI:
+    """FastAPI 애플리케이션을 생성한다."""
+
+    settings = get_settings()
+    app = FastAPI(title="CSV Viewer API", version="0.1.0")
+
+    # 프런트엔드 개발 환경을 고려해 와일드카드 허용(추후 제한 필요)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(create_api_router())
+    return app
+
+
+app = create_app()
+
+
+
+================================================
+FILE: backend/app/api/__init__.py
+================================================
+"""API 라우터 패키지."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter
+
+from .routes import router as v1_router
+
+
+def create_api_router() -> APIRouter:
+    """상위 라우터를 구성해 반환한다."""
+
+    api_router = APIRouter()
+    api_router.include_router(v1_router, prefix="/api")
+    return api_router
+
+
+
+================================================
+FILE: backend/app/api/routes.py
+================================================
+"""주요 CSV 관련 API 엔드포인트."""
+
+from __future__ import annotations
+
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+from typing import Any, List
+
+from fastapi import APIRouter, HTTPException, status
+
+from ..core.settings import get_settings
+from ..services import data_access
+from . import schemas
+
+router = APIRouter(prefix="/v1", tags=["csv"])
+
+
+def _to_filter_specs(items: List[schemas.FilterSpec]) -> List[data_access.FilterSpec]:
+    """Pydantic 필터 스펙을 데이터 접근 레이어 스펙으로 변환."""
+
+    return [
+        data_access.FilterSpec(
+            column=item.column,
+            operator=item.operator.value,
+            value=item.value,
+        )
+        for item in items
+    ]
+
+
+def _to_sort_specs(items: List[schemas.SortSpec]) -> List[data_access.SortSpec]:
+    """Pydantic 정렬 스펙을 데이터 접근 레이어 스펙으로 변환."""
+
+    return [
+        data_access.SortSpec(
+            column=item.column,
+            descending=item.direction == schemas.SortDirection.desc,
+        )
+        for item in items
+    ]
+
+
+@router.get("/healthz")
+async def health_check() -> dict[str, Any]:
+    """기본 헬스체크 엔드포인트."""
+
+    return {"status": "ok"}
+
+
+@router.get("/files", response_model=list[schemas.CSVFileInfo])
+async def list_files() -> list[schemas.CSVFileInfo]:
+    """사용 가능한 CSV 파일 메타데이터를 반환한다."""
+
+    settings = get_settings()
+    files = data_access.list_csv_files()
+    results: list[schemas.CSVFileInfo] = []
+
+    for file_path in files:
+        stat = file_path.stat()
+        try:
+            relative = file_path.relative_to(settings.csv_data_dir)
+        except ValueError:
+            relative = Path(file_path.name)
+
+        results.append(
+            schemas.CSVFileInfo(
+                name=file_path.name,
+                path=str(relative).replace("\\", "/"),
+                size_bytes=stat.st_size,
+                modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            )
+        )
+
+    return results
+
+
+@router.get("/tables", response_model=list[schemas.ColumnSchema])
+async def table_schema(path: str) -> list[schemas.ColumnSchema]:
+    """지정된 CSV 파일의 컬럼 스키마를 반환한다."""
+
+    try:
+        schema = data_access.describe_csv(path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return [
+        schemas.ColumnSchema(name=col.name, dtype=col.dtype, nullable=col.null)
+        for col in schema
+    ]
+
+
+@router.post("/preview", response_model=schemas.PreviewResponse)
+async def preview(request: schemas.PreviewRequest) -> schemas.PreviewResponse:
+    """CSV 데이터의 페이지네이션 미리보기를 반환한다."""
+
+    filters = _to_filter_specs(request.filters)
+    order_by = _to_sort_specs(request.order_by)
+
+    try:
+        df = data_access.preview_csv(
+            request.path,
+            limit=request.limit,
+            offset=request.offset,
+            filters=filters,
+            order_by=order_by,
+        )
+        total_rows = data_access.count_rows(request.path, filters=filters)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    rows = df.to_dict(orient="records")
+    columns = list(df.columns)
+    return schemas.PreviewResponse(rows=rows, total_rows=total_rows, columns=columns)
+
+
+@router.post("/query", response_model=schemas.QueryResponse)
+async def run_query(request: schemas.QueryRequest) -> schemas.QueryResponse:
+    """사용자 정의 SELECT 쿼리를 실행한다."""
+
+    try:
+        df = data_access.execute_sql(request.path, request.sql)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    rows = df.to_dict(orient="records")
+    columns = list(df.columns)
+    return schemas.QueryResponse(rows=rows, columns=columns, row_count=len(rows))
+
+
+@router.post("/summary", response_model=schemas.SummaryResponse)
+async def summary(request: schemas.SummaryRequest) -> schemas.SummaryResponse:
+    """컬럼 요약 통계를 계산한다."""
+
+    try:
+        summaries = data_access.summarize_csv(request.path, columns=request.columns or None)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return schemas.SummaryResponse(
+        summaries=[
+            schemas.ColumnSummary(**asdict(summary))
+            for summary in summaries
+        ]
+    )
+
+
+
+
+================================================
+FILE: backend/app/api/schemas.py
+================================================
+"""API 요청/응답 스키마 정의."""
+
+from __future__ import annotations
+
+from enum import Enum
+from typing import Any, List, Optional, Union
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class SortDirection(str, Enum):
+    """정렬 방향."""
+
+    asc = "asc"
+    desc = "desc"
+
+
+class FilterOperator(str, Enum):
+    """필터 연산자."""
+
+    eq = "eq"
+    ne = "ne"
+    lt = "lt"
+    lte = "lte"
+    gt = "gt"
+    gte = "gte"
+    contains = "contains"
+
+
+class CSVFileInfo(BaseModel):
+    """CSV 파일 메타데이터."""
+
+    name: str
+    path: str
+    size_bytes: int
+    modified_at: str
+
+
+class ColumnSchema(BaseModel):
+    """컬럼 스키마 정보."""
+
+    name: str
+    dtype: str
+    nullable: bool
+
+
+class SortSpec(BaseModel):
+    """정렬 스펙."""
+
+    column: str
+    direction: SortDirection = SortDirection.asc
+
+
+class FilterSpec(BaseModel):
+    """필터 조건."""
+
+    column: str
+    operator: FilterOperator = FilterOperator.eq
+    value: Optional[Any] = None
+
+
+class PreviewRequest(BaseModel):
+    """데이터 미리보기 요청."""
+
+    path: str
+    limit: int = Field(20, ge=1, le=500)
+    offset: int = Field(0, ge=0)
+    order_by: List[SortSpec] = Field(default_factory=list)
+    filters: List[FilterSpec] = Field(default_factory=list)
+
+
+class PreviewResponse(BaseModel):
+    """데이터 미리보기 응답."""
+
+    rows: List[dict[str, Any]]
+    total_rows: int
+    columns: List[str]
+
+
+class QueryRequest(BaseModel):
+    """사용자 정의 쿼리 요청."""
+
+    path: str
+    sql: str
+
+    @field_validator("sql")
+    @classmethod
+    def validate_sql(cls, value: str) -> str:
+        """SELECT 문만 허용한다."""
+
+        if not value.strip():
+            raise ValueError("SQL 문이 비어 있습니다.")
+        if not value.lstrip().lower().startswith("select"):
+            raise ValueError("SELECT 문만 허용됩니다.")
+        return value
+
+
+class QueryResponse(BaseModel):
+    """쿼리 실행 결과."""
+
+    rows: List[dict[str, Any]]
+    columns: List[str]
+    row_count: int
+
+
+class SummaryRequest(BaseModel):
+    """요약 통계 요청."""
+
+    path: str
+    columns: Optional[List[str]] = None
+
+
+class ColumnSummary(BaseModel):
+    """단일 컬럼 통계."""
+
+    column: str
+    dtype: str
+    total_rows: int
+    null_count: int
+    non_null_count: int
+    distinct_count: int
+    min_value: Optional[Union[int, float, str]] = None
+    max_value: Optional[Union[int, float, str]] = None
+    mean_value: Optional[float] = None
+    stddev_value: Optional[float] = None
+
+
+class SummaryResponse(BaseModel):
+    """요약 통계 응답."""
+
+    summaries: List[ColumnSummary]
+
+
+
+
+
+================================================
+FILE: backend/app/core/__init__.py
+================================================
+"""Core configuration and shared infrastructure."""
+
+
+
+================================================
+FILE: backend/app/core/settings.py
+================================================
+"""Application settings and environment helpers."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+
+
+@dataclass(slots=True)
+class AppSettings:
+    """Configuration values sourced from environment variables."""
+
+    csv_data_dir: Path = field(
+        default_factory=lambda: Path(os.getenv("CSV_DATA_DIR", "./data")).resolve()
+    )
+    duckdb_database_path: Path = field(
+        default_factory=lambda: Path(
+            os.getenv("DUCKDB_DATABASE_PATH", "./data/cache/catalog.duckdb")
+        ).resolve()
+    )
+    duckdb_sample_size: int = field(
+        default_factory=lambda: int(os.getenv("DUCKDB_SAMPLE_SIZE", "100000"))
+    )
+    auto_convert_to_parquet: bool = field(
+        default_factory=lambda: os.getenv("AUTO_CONVERT_TO_PARQUET", "1") not in {"0", "false", "False"}
+    )
+    parquet_row_group_size: int = field(
+        default_factory=lambda: int(os.getenv("PARQUET_ROW_GROUP_SIZE", "100000"))
+    )
+
+    def ensure_directories(self) -> None:
+        """Create required directories if they do not exist yet."""
+        self.csv_data_dir.mkdir(parents=True, exist_ok=True)
+        self.duckdb_database_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> AppSettings:
+    """Return cached application settings."""
+    settings = AppSettings()
+    settings.ensure_directories()
+    return settings
+
+
+def reset_settings_cache() -> None:
+    """Clear cached settings, forcing a reload on next access."""
+
+    get_settings.cache_clear()
+
+
+
+================================================
+FILE: backend/app/db/__init__.py
+================================================
+"""Database connection utilities."""
+
+
+
+================================================
+FILE: backend/app/db/duckdb_session.py
+================================================
+"""DuckDB connection helpers."""
+
+from __future__ import annotations
+
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Iterator
+
+import duckdb
+
+from ..core.settings import get_settings
+
+
+def _database_path() -> str:
+    settings = get_settings()
+    path: Path = settings.duckdb_database_path
+    if str(path) == ":memory:":
+        return ":memory:"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
+@contextmanager
+def duckdb_connection(read_only: bool = False) -> Iterator[duckdb.DuckDBPyConnection]:
+    """Yield a DuckDB connection, ensuring it is closed afterwards."""
+
+    conn = duckdb.connect(database=_database_path(), read_only=read_only)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+
+================================================
+FILE: backend/app/services/__init__.py
+================================================
+"""High-level data access services."""
+
+
+
+================================================
+FILE: backend/app/services/data_access.py
+================================================
+"""Utilities for querying CSV data through DuckDB."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime, time
+from pathlib import Path
+from typing import Any, List, Sequence
+
+import duckdb
+import pandas as pd
+
+from ..core.settings import get_settings
+from ..db.duckdb_session import duckdb_connection
+
+
+@dataclass(slots=True)
+class ColumnSchema:
+    """Schema information for a single column."""
+
+    name: str
+    dtype: str
+    null: bool
+
+
+@dataclass(slots=True)
+class FilterSpec:
+    """Filtering specification for query construction."""
+
+    column: str
+    operator: str = "eq"
+    value: Any | None = None
+
+
+@dataclass(slots=True)
+class SortSpec:
+    """Ordering specification for query construction."""
+
+    column: str
+    descending: bool = False
+
+
+@dataclass(slots=True)
+class ColumnSummary:
+    """Aggregated statistics for a column."""
+
+    column: str
+    dtype: str
+    total_rows: int
+    null_count: int
+    non_null_count: int
+    distinct_count: int
+    min_value: Any | None = None
+    max_value: Any | None = None
+    mean_value: float | None = None
+    stddev_value: float | None = None
+
+
+def list_csv_files(patterns: Sequence[str] | None = None) -> List[Path]:
+    """Return data files located inside the configured data directory.
+
+    Includes both CSV and Parquet files by default. When auto conversion is enabled,
+    missing or outdated Parquet counterparts are generated on the fly.
+    """
+
+    settings = get_settings()
+    base = settings.csv_data_dir
+    resolved_patterns = list(patterns) if patterns else ["*.csv", "*.parquet"]
+
+    matches: set[Path] = set()
+    for pattern in resolved_patterns:
+        matches.update(base.glob(pattern))
+
+    if settings.auto_convert_to_parquet:
+        for path in list(matches):
+            if path.suffix.lower() != ".csv":
+                continue
+
+            parquet_path = path.with_suffix(".parquet")
+            try:
+                _ensure_parquet_cache(path, parquet_path)
+            except Exception:  # pragma: no cover - safeguard to avoid aborting listing
+                continue
+            else:
+                matches.add(parquet_path)
+                matches.discard(path)
+
+    return sorted(path for path in matches if path.is_file())
+
+
+def _register_csv_view(
+    conn: duckdb.DuckDBPyConnection,
+    csv_path: Path | str,
+    *,
+    sample_size: int | None = None,
+    view_name: str = "csv_view",
+) -> None:
+    """Create an in-memory DuckDB view for a CSV file."""
+
+    settings = get_settings()
+    raw_path = Path(csv_path)
+    target = raw_path if raw_path.is_absolute() else settings.csv_data_dir / raw_path
+    if not target.exists():
+        raise FileNotFoundError(f"CSV file not found: {target}")
+
+    effective_sample = sample_size or settings.duckdb_sample_size
+
+    csv_literal = str(target).replace("'", "''")
+    if target.suffix.lower() == ".parquet":
+        conn.execute(
+            f"""
+            CREATE OR REPLACE TEMP VIEW {view_name} AS
+            SELECT *
+            FROM read_parquet('{csv_literal}')
+            """
+        )
+    else:
+        conn.execute(
+            f"""
+            CREATE OR REPLACE TEMP VIEW {view_name} AS
+            SELECT *
+            FROM read_csv_auto('{csv_literal}', SAMPLE_SIZE={int(effective_sample)})
+            """
+        )
+
+
+def _ensure_parquet_cache(csv_path: Path, parquet_path: Path) -> None:
+    """Ensure a Parquet copy exists and is up-to-date for the given CSV."""
+
+    if parquet_path.exists() and parquet_path.stat().st_mtime >= csv_path.stat().st_mtime:
+        return
+
+    settings = get_settings()
+    parquet_path.parent.mkdir(parents=True, exist_ok=True)
+
+    csv_literal = str(csv_path).replace("'", "''")
+    parquet_literal = str(parquet_path).replace("'", "''")
+
+    with duckdb_connection() as conn:
+        conn.execute(
+            f"""
+            COPY (
+                SELECT *
+                FROM read_csv_auto('{csv_literal}', SAMPLE_SIZE={int(settings.duckdb_sample_size)})
+            )
+            TO '{parquet_literal}'
+            (FORMAT 'parquet', ROW_GROUP_SIZE {int(settings.parquet_row_group_size)})
+            """
+        )
+
+
+def describe_csv(csv_path: Path | str, *, sample_size: int | None = None) -> List[ColumnSchema]:
+    """Return column names, types, and nullability for the given CSV file."""
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size, view_name="describe_view")
+        rows = conn.execute("DESCRIBE describe_view").fetchall()
+
+    return [
+        ColumnSchema(name=row[0], dtype=row[1], null=row[2] == "YES")
+        for row in rows
+    ]
+
+
+def _quote_identifier(name: str) -> str:
+    """Quote a SQL identifier safely."""
+
+    return name.replace('"', '""')
+
+
+def _build_filters_clause(filters: Sequence[FilterSpec] | None, params: List[Any]) -> str:
+    """Build a WHERE clause using filter specifications."""
+
+    if not filters:
+        return ""
+
+    clauses: list[str] = []
+    for spec in filters:
+        column = _quote_identifier(spec.column)
+        operator = spec.operator.lower()
+        if operator == "eq":
+            clauses.append(f'"{column}" = ?')
+            params.append(spec.value)
+        elif operator == "ne":
+            clauses.append(f'"{column}" <> ?')
+            params.append(spec.value)
+        elif operator == "lt":
+            clauses.append(f'"{column}" < ?')
+            params.append(spec.value)
+        elif operator == "lte":
+            clauses.append(f'"{column}" <= ?')
+            params.append(spec.value)
+        elif operator == "gt":
+            clauses.append(f'"{column}" > ?')
+            params.append(spec.value)
+        elif operator == "gte":
+            clauses.append(f'"{column}" >= ?')
+            params.append(spec.value)
+        elif operator == "contains":
+            clauses.append(f'"{column}" ILIKE ?')
+            params.append(f"%{spec.value}%")
+        else:
+            raise ValueError(f"Unsupported filter operator: {spec.operator}")
+
+    return " WHERE " + " AND ".join(clauses)
+
+
+def _build_order_clause(order_by: Sequence[SortSpec] | None) -> str:
+    """Build an ORDER BY clause."""
+
+    if not order_by:
+        return ""
+
+    parts = []
+    for spec in order_by:
+        column = _quote_identifier(spec.column)
+        direction = "DESC" if spec.descending else "ASC"
+        parts.append(f'"{column}" {direction}')
+
+    return " ORDER BY " + ", ".join(parts)
+
+
+def preview_csv(
+    csv_path: Path | str,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    sample_size: int | None = None,
+    order_by: Sequence[SortSpec] | None = None,
+    filters: Sequence[FilterSpec] | None = None,
+) -> pd.DataFrame:
+    """Fetch a paginated preview of the CSV data."""
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size)
+        params: list[Any] = []
+        where_clause = _build_filters_clause(filters, params)
+        order_clause = _build_order_clause(order_by)
+        params.extend([limit, offset])
+        query = f"""
+            SELECT *
+            FROM csv_view
+            {where_clause}
+            {order_clause}
+            LIMIT ?
+            OFFSET ?
+        """
+        df = conn.execute(query, params).fetch_df()
+
+    return df
+
+
+def count_rows(
+    csv_path: Path | str,
+    *,
+    sample_size: int | None = None,
+    filters: Sequence[FilterSpec] | None = None,
+) -> int:
+    """Return the total number of rows in the CSV file."""
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size)
+        params: list[Any] = []
+        where_clause = _build_filters_clause(filters, params)
+        query = f"SELECT COUNT(*) FROM csv_view{where_clause}"
+        total = conn.execute(query, params).fetchone()[0]
+
+    return int(total or 0)
+
+
+def unique_values(
+    csv_path: Path | str,
+    column: str,
+    *,
+    limit: int = 20,
+    sample_size: int | None = None,
+) -> List[str]:
+    """Return distinct values for a column (useful for filters)."""
+
+    column_identifier = column.replace('"', '""')
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size)
+        values = conn.execute(
+            f"""
+            SELECT DISTINCT "{column_identifier}"
+            FROM csv_view
+            WHERE "{column_identifier}" IS NOT NULL
+            LIMIT ?
+            """,
+            [limit],
+        ).fetchall()
+
+    return [value[0] for value in values]
+
+
+def sample_rows(
+    csv_path: Path | str,
+    *,
+    sample_size: int = 1000,
+    seed: int | None = None,
+    read_sample_size: int | None = None,
+) -> pd.DataFrame:
+    """Return a random sample of rows from the CSV."""
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=read_sample_size)
+        seed_clause = f" (SEED {int(seed)})" if seed is not None else ""
+        df = conn.execute(
+            f"""
+            SELECT *
+            FROM csv_view
+            USING SAMPLE {int(sample_size)} ROWS{seed_clause}
+            """,
+        ).fetch_df()
+
+    return df
+
+
+def execute_sql(
+    csv_path: Path | str,
+    sql: str,
+    *,
+    sample_size: int | None = None,
+) -> pd.DataFrame:
+    """Execute a SELECT SQL statement against the CSV view."""
+
+    stripped = sql.strip()
+    if not stripped.lower().startswith("select"):
+        raise ValueError("Only SELECT statements are allowed.")
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size)
+        df = conn.execute(stripped).fetch_df()
+
+    return df
+
+
+NUMERIC_TYPES = {
+    "TINYINT",
+    "SMALLINT",
+    "INTEGER",
+    "BIGINT",
+    "UTINYINT",
+    "USMALLINT",
+    "UINTEGER",
+    "UBIGINT",
+    "HUGEINT",
+    "DOUBLE",
+    "FLOAT",
+    "REAL",
+    "DECIMAL",
+    "NUMERIC",
+}
+
+
+def _is_numeric_dtype(dtype: str) -> bool:
+    """DuckDB 타입 문자열이 수치형인지 판별한다."""
+
+    normalized = dtype.upper()
+    return any(normalized.startswith(prefix) for prefix in NUMERIC_TYPES)
+
+
+def _serialize_value(value: Any) -> Any:
+    """DuckDB에서 반환된 값을 JSON 직렬화 가능한 형태로 변환한다."""
+
+    if isinstance(value, (datetime, date, time)):
+        # DuckDB는 time 타입도 지원하므로 ISO 포맷으로 통일
+        return value.isoformat()
+    return value
+
+
+def summarize_csv(
+    csv_path: Path | str,
+    *,
+    sample_size: int | None = None,
+    columns: Sequence[str] | None = None,
+) -> List[ColumnSummary]:
+    """Calculate summary statistics for selected columns."""
+
+    schema = describe_csv(csv_path, sample_size=sample_size)
+    if columns:
+        target_names = set(columns)
+        targets = [col for col in schema if col.name in target_names]
+    else:
+        targets = schema
+
+    summaries: list[ColumnSummary] = []
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size)
+        for column in targets:
+            column_name = _quote_identifier(column.name)
+            base_stats = conn.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS total_rows,
+                    COUNT("{column_name}") AS non_null_count,
+                    COUNT(*) - COUNT("{column_name}") AS null_count,
+                    COUNT(DISTINCT "{column_name}") AS distinct_count
+                FROM csv_view
+                """
+            ).fetchone()
+
+            total_rows = int(base_stats[0] or 0)
+            non_null = int(base_stats[1] or 0)
+            nulls = int(base_stats[2] or 0)
+            distinct = int(base_stats[3] or 0)
+
+            min_value = max_value = mean_value = stddev_value = None
+
+            if _is_numeric_dtype(column.dtype) and non_null > 0:
+                numeric_stats = conn.execute(
+                    f"""
+                    SELECT
+                        MIN("{column_name}") AS min_value,
+                        MAX("{column_name}") AS max_value,
+                        AVG("{column_name}") AS mean_value,
+                        STDDEV_SAMP("{column_name}") AS stddev_value
+                    FROM csv_view
+                    WHERE "{column_name}" IS NOT NULL
+                    """
+                ).fetchone()
+                min_value = numeric_stats[0]
+                max_value = numeric_stats[1]
+                mean_value = (
+                    float(numeric_stats[2]) if numeric_stats[2] is not None else None
+                )
+                stddev_value = (
+                    float(numeric_stats[3]) if numeric_stats[3] is not None else None
+                )
+            elif non_null > 0:
+                minmax = conn.execute(
+                    f"""
+                    SELECT
+                        MIN("{column_name}") AS min_value,
+                        MAX("{column_name}") AS max_value
+                    FROM csv_view
+                    WHERE "{column_name}" IS NOT NULL
+                    """
+                ).fetchone()
+                min_value = minmax[0]
+                max_value = minmax[1]
+
+            summaries.append(
+                ColumnSummary(
+                    column=column.name,
+                    dtype=column.dtype,
+                    total_rows=total_rows,
+                    null_count=nulls,
+                    non_null_count=non_null,
+                    distinct_count=distinct,
+                    min_value=_serialize_value(min_value),
+                    max_value=_serialize_value(max_value),
+                    mean_value=mean_value,
+                    stddev_value=stddev_value,
+                )
+            )
+
+    return summaries
+
+
+
+
+
+================================================
+FILE: backend/tests/__init__.py
+================================================
+"""Test suite package."""
+
+
+
+================================================
+FILE: backend/tests/test_data_access.py
+================================================
+"""Tests for the DuckDB data access helpers."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pandas as pd
+
+from backend.app.core import settings
+from backend.app.services import data_access
+
+
+def setup_module() -> None:
+    """Ensure cached settings do not leak between tests."""
+    settings.reset_settings_cache()
+
+
+def create_fixture_csv(tmp_path: Path) -> Path:
+    csv_path = tmp_path / "fixture.csv"
+    df = pd.DataFrame(
+        {
+            "time": ["2024-01-01 00:00:00", "2024-01-01 00:05:00"],
+            "pv_id": ["PV1", "PV2"],
+            "value": [1.5, 3.2],
+        }
+    )
+    df.to_csv(csv_path, index=False)
+    return csv_path
+
+
+def test_data_access_end_to_end(tmp_path: Path, monkeypatch) -> None:
+    """Ensure the data access helpers can describe, preview, and sample data."""
+
+    csv_path = create_fixture_csv(tmp_path)
+
+    duckdb_path = tmp_path / "catalog.duckdb"
+    monkeypatch.setenv("CSV_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DUCKDB_DATABASE_PATH", str(duckdb_path))
+    monkeypatch.setenv("DUCKDB_SAMPLE_SIZE", "1000")
+
+    settings.reset_settings_cache()
+    current_settings = settings.get_settings()
+    assert current_settings.csv_data_dir == tmp_path.resolve()
+
+    schema = data_access.describe_csv(csv_path.name)
+    assert schema[0].name == "time"
+
+    total = data_access.count_rows(csv_path.name)
+    assert total == 2
+
+    preview = data_access.preview_csv(csv_path.name, limit=1)
+    assert len(preview.index) == 1
+
+    unique = data_access.unique_values(csv_path.name, "pv_id")
+    assert sorted(unique) == ["PV1", "PV2"]
+
+    sample = data_access.sample_rows(csv_path.name, sample_size=1)
+    assert len(sample.index) == 1
+
+
+
+================================================
+FILE: frontend/README.md
+================================================
+# Frontend
+
+React 기반 웹 UI 소스를 포함합니다.
+
+- `src/`: 페이지, 컴포넌트, 상태 관리
+- `public/`: 정적 자산 및 HTML 템플릿
+- `tests/`: UI 테스트 코드
+
+Vite를 이용한 개발/빌드 환경을 구성할 예정입니다.
+
+
+
+================================================
+FILE: frontend/index.html
+================================================
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CSV Viewer & Visualizer</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+
+================================================
+FILE: frontend/package.json
+================================================
+{
+  "name": "csv-viewer-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --max-warnings=0"
+  },
+  "dependencies": {
+    "ag-grid-community": "^32.1.0",
+    "ag-grid-react": "^32.1.0",
+    "axios": "^1.7.2",
+    "clsx": "^2.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react-swc": "^3.7.0",
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb": "^19.0.4",
+    "eslint-config-airbnb-typescript": "^18.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jsx-a11y": "^6.8.0",
+    "eslint-plugin-react": "^7.34.3",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "typescript": "^5.4.5",
+    "vite": "^7.1.10"
+  }
+}
+
+
+
+================================================
+FILE: frontend/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
+
+
+
+================================================
+FILE: frontend/tsconfig.node.json
+================================================
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+
+
+
+================================================
+FILE: frontend/vite.config.ts
+================================================
+import { defineConfig, loadEnv } from "vite";
+import react from "@vitejs/plugin-react-swc";
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "VITE_");
+
+  return {
+    plugins: [react()],
+    server: {
+      port: Number(env.VITE_DEV_SERVER_PORT ?? 5173),
+      host: env.VITE_DEV_SERVER_HOST ?? "127.0.0.1"
+    },
+    build: {
+      sourcemap: mode !== "production",
+      chunkSizeWarningLimit: 6000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("ag-grid-react") || id.includes("ag-grid-community")) {
+              return "aggrid";
+            }
+            return undefined;
+          }
+        }
+      }
+    }
+  };
+});
+
+
+
+================================================
+FILE: frontend/src/App.tsx
+================================================
+import { DashboardPage } from "./pages/DashboardPage";
+
+export default function App() {
+  return <DashboardPage />;
+}
+
+
+
+================================================
+FILE: frontend/src/main.tsx
+================================================
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./styles/global.css";
+
+const root = document.getElementById("root");
+
+if (!root) {
+  throw new Error("Root element not found");
+}
+
+ReactDOM.createRoot(root).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+
+
+================================================
+FILE: frontend/src/vite-env.d.ts
+================================================
+/// <reference types="vite/client" />
+
+declare module "*.module.css" {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+
+
+
+================================================
+FILE: frontend/src/components/DataPreview/DataPreviewGrid.module.css
+================================================
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--surface-panel);
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.reloadButton {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.reloadButton:hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+.gridWrapper {
+  position: relative;
+  height: 440px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e2e8f0;
+  font-weight: 600;
+  backdrop-filter: blur(2px);
+}
+
+.error {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: rgba(248, 113, 113, 0.2);
+  color: #fecaca;
+}
+
+.nullableCell {
+  opacity: 0.9;
+}
+
+@media (prefers-color-scheme: light) {
+  .loadingOverlay {
+    background: rgba(148, 163, 184, 0.25);
+    color: #0f172a;
+  }
+
+  .error {
+    color: #991b1b;
+  }
+}
+
+
+
+================================================
+FILE: frontend/src/components/DataPreview/DataPreviewGrid.tsx
+================================================
+import { useCallback, useMemo, useRef } from "react";
+import type {
+  ColDef,
+  GridReadyEvent,
+  SortChangedEvent,
+  FilterChangedEvent,
+  ITextFilterParams
+} from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-quartz.css";
+import styles from "./DataPreviewGrid.module.css";
+import type { ColumnSchema } from "../../types/api";
+import type { FilterSpec, SortSpec } from "../../state/useDashboardStore";
+
+type DataPreviewGridProps = {
+  schema: ColumnSchema[];
+  rows: Array<Record<string, unknown>>;
+  totalRows: number;
+  page: number;
+  pageSize: number;
+  isLoading: boolean;
+  error?: string;
+  sort: SortSpec[];
+  filters: FilterSpec[];
+  onSortChange: (sort: SortSpec[]) => void;
+  onFilterChange: (filters: FilterSpec[]) => void;
+  onReload: () => void;
+};
+
+type ColumnFilters = Record<string, FilterSpec>;
+
+export function DataPreviewGrid({
+  schema,
+  rows,
+  totalRows,
+  page,
+  pageSize,
+  isLoading,
+  error,
+  sort,
+  filters,
+  onSortChange,
+  onFilterChange,
+  onReload
+}: DataPreviewGridProps) {
+  const gridRef = useRef<AgGridReact>(null);
+
+  const columnDefs = useMemo<ColDef[]>(() => {
+    if (schema.length === 0 && rows.length > 0) {
+      return Object.keys(rows[0]).map((key) => ({
+        headerName: key,
+        field: key,
+        filter: "agTextColumnFilter",
+        sortable: true,
+        resizable: true,
+        minWidth: 120
+      }));
+    }
+
+    return schema.map((column) => ({
+      headerName: column.name,
+      field: column.name,
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 140,
+      cellClass: column.nullable ? styles.nullableCell : undefined,
+      filterParams: {
+        buttons: ["reset", "apply"],
+        debounceMs: 250,
+        caseSensitive: false,
+        textFormatter: (value: string | null) => value?.toLowerCase() ?? "",
+        trimInput: true
+      } satisfies ITextFilterParams
+    }));
+  }, [rows, schema]);
+
+  const defaultColDef = useMemo<ColDef>(
+    () => ({
+      flex: 1,
+      minWidth: 120,
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true
+    }),
+    []
+  );
+
+  const onGridReady = useCallback(
+    (event: GridReadyEvent) => {
+      const { api } = event;
+      if (sort.length > 0) {
+        api.setSortModel(
+          sort.map((item) => ({
+            colId: item.column,
+            sort: item.direction
+          }))
+        );
+      }
+      if (filters.length > 0) {
+        const model: ColumnFilters = {};
+        filters.forEach((item) => {
+          model[item.column] = item;
+        });
+        Object.entries(model).forEach(([column, filterSpec]) => {
+          const filterInstance = api.getFilterInstance(column);
+          if (filterInstance && "setModel" in filterInstance) {
+            filterInstance.setModel({
+              type: "contains",
+              filter: String(filterSpec.value ?? "")
+            });
+          }
+        });
+        api.onFilterChanged();
+      }
+    },
+    [filters, sort]
+  );
+
+  const handleSortChanged = useCallback(
+    (event: SortChangedEvent) => {
+      const model = event.api.getSortModel();
+      onSortChange(
+        model.map((item) => ({
+          column: item.colId ?? item.colId,
+          direction: item.sort ?? "asc"
+        })) as SortSpec[]
+      );
+    },
+    [onSortChange]
+  );
+
+  const handleFilterChanged = useCallback(
+    (event: FilterChangedEvent) => {
+      const api = event.api;
+      const appliedFilters: FilterSpec[] = [];
+
+      columnDefs.forEach((col) => {
+        if (!col.field) {
+          return;
+        }
+        const filterModel = api.getFilterModel()[col.field];
+        if (filterModel && filterModel.filter) {
+          appliedFilters.push({
+            column: col.field,
+            operator: "contains",
+            value: filterModel.filter
+          });
+        }
+      });
+
+      onFilterChange(appliedFilters);
+    },
+    [columnDefs, onFilterChange]
+  );
+
+  return (
+    <section className={styles.container}>
+      <header className={styles.header}>
+        <div>
+          <h2 className={styles.title}>Data Preview</h2>
+          <p className={styles.subtitle}>
+            Page {page} · Rows {rows.length} / {totalRows} (page size {pageSize})
+          </p>
+        </div>
+        <div className={styles.actions}>
+          <button type="button" onClick={onReload} className={styles.reloadButton}>
+            Refresh
+          </button>
+        </div>
+      </header>
+      {error ? (
+        <div className={styles.error}>{error}</div>
+      ) : (
+        <div className={`ag-theme-quartz ${styles.gridWrapper}`}>
+          <AgGridReact
+            ref={gridRef}
+            rowData={rows}
+            columnDefs={columnDefs}
+            defaultColDef={defaultColDef}
+            animateRows
+            suppressAggFuncInHeader
+            enableCellTextSelection
+            ensureDomOrder
+            pagination={false}
+            overlayLoadingTemplate="<span class='ag-overlay-loading-center'>Loading data...</span>"
+            onGridReady={onGridReady}
+            onSortChanged={handleSortChanged}
+            onFilterChanged={handleFilterChanged}
+            suppressFieldDotNotation
+            suppressDragLeaveHidesColumns
+            suppressMenuHide
+            tooltipShowDelay={0}
+          />
+          {isLoading && <div className={styles.loadingOverlay}>Fetching data...</div>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/components/DataPreview/PreviewControls.module.css
+================================================
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pagination button {
+  background: rgba(15, 23, 42, 0.5);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination button:not(:disabled):hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.pageInfo {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.pageSize {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.pageSize select {
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.75rem;
+  background: rgba(249, 250, 251, 0.95);
+  color: #0f172a;
+}
+
+@media (max-width: 960px) {
+  .controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .pageSize select {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.4);
+    color: #f8fafc;
+  }
+}
+
+
+
+
+================================================
+FILE: frontend/src/components/DataPreview/PreviewControls.tsx
+================================================
+import styles from "./PreviewControls.module.css";
+
+type PreviewControlsProps = {
+  page: number;
+  pageSize: number;
+  totalRows: number;
+  isLoading: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+};
+
+const PAGE_SIZE_OPTIONS = [50, 100, 200, 500];
+
+export function PreviewControls({
+  page,
+  pageSize,
+  totalRows,
+  isLoading,
+  onPageChange,
+  onPageSizeChange
+}: PreviewControlsProps) {
+  const totalPages = totalRows > 0 ? Math.ceil(totalRows / pageSize) : 1;
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  return (
+    <div className={styles.controls}>
+      <div className={styles.pagination}>
+        <button type="button" disabled={!canPrev || isLoading} onClick={() => onPageChange(1)}>
+          First
+        </button>
+        <button type="button" disabled={!canPrev || isLoading} onClick={() => onPageChange(page - 1)}>
+          Previous
+        </button>
+        <span className={styles.pageInfo}>
+          Page {page} / {totalPages}
+        </span>
+        <button type="button" disabled={!canNext || isLoading} onClick={() => onPageChange(page + 1)}>
+          Next
+        </button>
+        <button type="button" disabled={!canNext || isLoading} onClick={() => onPageChange(totalPages)}>
+          Last
+        </button>
+      </div>
+      <label className={styles.pageSize}>
+        Page size
+        <select
+          value={pageSize}
+          disabled={isLoading}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+        >
+          {PAGE_SIZE_OPTIONS.map((size) => (
+            <option key={size} value={size}>
+              {size.toLocaleString()} rows
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/components/FileBrowser/FileBrowser.module.css
+================================================
+@keyframes pulse {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+.browser {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--surface-panel);
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  min-width: 280px;
+  max-width: 320px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.reloadButton {
+  background: var(--accent);
+  color: #0f172a;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.35rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.reloadButton:disabled {
+  background: rgba(56, 189, 248, 0.4);
+  cursor: default;
+}
+
+.reloadButton:not(:disabled):hover {
+  background: var(--accent-strong);
+}
+
+.state,
+.error {
+  font-size: 0.9rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-secondary);
+  text-align: center;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+.error {
+  background: rgba(248, 113, 113, 0.15);
+  color: #fca5a5;
+  animation: none;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  background: rgba(15, 23, 42, 0.35);
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: border 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+
+.item:hover {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.selected {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.fileName {
+  font-weight: 600;
+  text-align: left;
+}
+
+.recentBadge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent);
+}
+
+.meta {
+  display: flex;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.meta div {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.meta dt {
+  opacity: 0.7;
+}
+
+.meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: light) {
+  .browser {
+    background: var(--surface-panel);
+  }
+
+  .item {
+    background: rgba(15, 23, 42, 0.05);
+  }
+
+  .item:hover {
+    background: rgba(56, 189, 248, 0.15);
+  }
+}
+
+
+
+================================================
+FILE: frontend/src/components/FileBrowser/FileBrowser.tsx
+================================================
+import { useMemo } from "react";
+import clsx from "clsx";
+import styles from "./FileBrowser.module.css";
+import type { CsvFileInfo } from "../../types/api";
+
+type FileBrowserProps = {
+  files: CsvFileInfo[];
+  recentFiles: string[];
+  selectedPath?: string;
+  isLoading: boolean;
+  error?: string;
+  onSelect: (path: string) => void;
+  onReload?: () => void;
+};
+
+export function FileBrowser({
+  files,
+  recentFiles,
+  selectedPath,
+  isLoading,
+  error,
+  onSelect,
+  onReload
+}: FileBrowserProps) {
+  const recentSet = useMemo(() => new Set(recentFiles), [recentFiles]);
+
+  return (
+    <aside className={styles.browser}>
+      <div className={styles.header}>
+        <div>
+          <h2 className={styles.title}>CSV Files</h2>
+          <p className={styles.subtitle}>Select a dataset to load preview and analytics.</p>
+        </div>
+        <button
+          type="button"
+          className={styles.reloadButton}
+          onClick={onReload}
+          disabled={isLoading}
+        >
+          Refresh
+        </button>
+      </div>
+      {isLoading ? (
+        <div className={styles.state}>Loading files...</div>
+      ) : error ? (
+        <div className={styles.error}>{error}</div>
+      ) : files.length === 0 ? (
+        <div className={styles.state}>No CSV files detected.</div>
+      ) : (
+        <ul className={styles.list}>
+          {files.map((file) => {
+            const isSelected = selectedPath === file.path;
+            const isRecent = recentSet.has(file.path);
+            return (
+              <li key={file.path}>
+                <button
+                  type="button"
+                  className={clsx(styles.item, isSelected && styles.selected)}
+                  onClick={() => onSelect(file.path)}
+                >
+                  <div className={styles.itemHeader}>
+                    <span className={styles.fileName}>{file.name}</span>
+                    {isRecent && <span className={styles.recentBadge}>RECENT</span>}
+                  </div>
+                  <dl className={styles.meta}>
+                    <div>
+                      <dt>Size</dt>
+                      <dd>{formatSize(file.size_bytes)}</dd>
+                    </div>
+                    <div>
+                      <dt>Modified</dt>
+                      <dd>{formatDate(file.modified_at)}</dd>
+                    </div>
+                  </dl>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </aside>
+  );
+}
+
+function formatSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "-";
+  }
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatDate(input: string): string {
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  return date.toLocaleString();
+}
+
+
+
+================================================
+FILE: frontend/src/components/Summary/SummaryPanel.module.css
+================================================
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface-panel);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.search {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.75rem;
+  background: rgba(15, 23, 42, 0.25);
+  color: var(--text-primary);
+}
+
+.actions button {
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent);
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actions button:not(:disabled):hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+.state,
+.error {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  text-align: center;
+  color: var(--text-secondary);
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.error {
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.2);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.table th,
+.table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.table tbody tr:nth-child(odd) {
+  background: rgba(148, 163, 184, 0.05);
+}
+
+@media (prefers-color-scheme: light) {
+  .search {
+    background: rgba(241, 245, 249, 0.9);
+  }
+
+  .error {
+    color: #991b1b;
+  }
+}
+
+
+
+================================================
+FILE: frontend/src/components/Summary/SummaryPanel.tsx
+================================================
+import { useMemo, useState } from "react";
+import styles from "./SummaryPanel.module.css";
+import type { ColumnSchema, SummaryResponse } from "../../types/api";
+
+type SummaryPanelProps = {
+  schema: ColumnSchema[];
+  summaries: SummaryResponse["summaries"];
+  isLoading: boolean;
+  error?: string;
+  onRefresh: () => void;
+};
+
+const METRICS = [
+  { key: "total_rows", label: "Total rows" },
+  { key: "non_null_count", label: "Non-null count" },
+  { key: "null_count", label: "Null count" },
+  { key: "distinct_count", label: "Distinct count" },
+  { key: "min_value", label: "Min" },
+  { key: "max_value", label: "Max" },
+  { key: "mean_value", label: "Mean" },
+  { key: "stddev_value", label: "Stddev" }
+] as const;
+
+export function SummaryPanel({
+  schema,
+  summaries,
+  isLoading,
+  error,
+  onRefresh
+}: SummaryPanelProps) {
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) {
+      return summaries;
+    }
+    return summaries.filter((item) => item.column.toLowerCase().includes(keyword));
+  }, [summaries, search]);
+
+  const summaryMap = useMemo(() => {
+    const map = new Map<string, SummaryResponse["summaries"][number]>();
+    summaries.forEach((item) => map.set(item.column, item));
+    return map;
+  }, [summaries]);
+
+  const orderedRows = useMemo(() => {
+    if (schema.length === 0) {
+      return filtered;
+    }
+    const allowed = new Set(filtered.map((item) => item.column));
+    return schema
+      .filter((column) => allowed.has(column.name))
+      .map((column) => summaryMap.get(column.name))
+      .filter((item): item is SummaryResponse["summaries"][number] => Boolean(item));
+  }, [filtered, schema, summaryMap]);
+
+  const rowsToRender = schema.length > 0 ? orderedRows : filtered;
+  const hasData = rowsToRender.length > 0;
+
+  return (
+    <section className={styles.container}>
+      <header className={styles.header}>
+        <div>
+          <h2 className={styles.title}>Summary Statistics</h2>
+          <p className={styles.subtitle}>
+            Inspect distribution per column. Filter results to focus on key metrics.
+          </p>
+        </div>
+        <div className={styles.actions}>
+          <input
+            className={styles.search}
+            placeholder="Filter columns..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <button type="button" onClick={onRefresh} disabled={isLoading}>
+            Refresh
+          </button>
+        </div>
+      </header>
+      {isLoading ? (
+        <div className={styles.state}>Loading summary...</div>
+      ) : error ? (
+        <div className={styles.error}>{error}</div>
+      ) : !hasData ? (
+        <div className={styles.state}>No summary data available.</div>
+      ) : (
+        <div className={styles.tableWrapper}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Column</th>
+                <th>Type</th>
+                {METRICS.map((metric) => (
+                  <th key={metric.key}>{metric.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rowsToRender.map((item) => (
+                <tr key={item.column}>
+                  <td>{item.column}</td>
+                  <td>{item.dtype}</td>
+                  {METRICS.map((metric) => (
+                    <td key={metric.key}>{formatValue((item as Record<string, unknown>)[metric.key])}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return "-";
+    }
+    if (Math.abs(value) >= 1_000_000 || Math.abs(value) < 0.001) {
+      return value.toExponential(2);
+    }
+    return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  }
+  return String(value);
+}
+
+
+
+================================================
+FILE: frontend/src/config/env.ts
+================================================
+const fallback = {
+  apiBaseUrl: "http://localhost:8000",
+  defaultPageSize: 200
+} as const;
+
+export const env = {
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? fallback.apiBaseUrl,
+  defaultPageSize: Number(import.meta.env.VITE_DEFAULT_PAGE_SIZE ?? fallback.defaultPageSize)
+};
+
+if (!env.apiBaseUrl) {
+  // eslint-disable-next-line no-console
+  console.warn("VITE_API_BASE_URL가 설정되지 않아 기본값을 사용합니다.");
+}
+
+if (Number.isNaN(env.defaultPageSize) || env.defaultPageSize <= 0) {
+  env.defaultPageSize = fallback.defaultPageSize;
+}
+
+
+
+================================================
+FILE: frontend/src/pages/DashboardPage.module.css
+================================================
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: 100vh;
+  padding: 1.75rem;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.9));
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.badge,
+.badgeError {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent);
+}
+
+.badgeError {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fca5a5;
+}
+
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.5rem;
+  min-height: 0;
+}
+
+.mainContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.analytics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 1280px) {
+  .layout {
+    grid-template-columns: 300px 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .page {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  .page {
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  }
+
+  .subtitle {
+    color: #475569;
+  }
+
+  .badgeError {
+    color: #b91c1c;
+  }
+}
+
+
+
+================================================
+FILE: frontend/src/pages/DashboardPage.tsx
+================================================
+import { useEffect, useMemo } from "react";
+import { FileBrowser } from "../components/FileBrowser/FileBrowser";
+import { DataPreviewGrid } from "../components/DataPreview/DataPreviewGrid";
+import { PreviewControls } from "../components/DataPreview/PreviewControls";
+import { SummaryPanel } from "../components/Summary/SummaryPanel";
+import { useDashboardStore } from "../state/useDashboardStore";
+import styles from "./DashboardPage.module.css";
+
+export function DashboardPage() {
+  const {
+    files,
+    recentFiles,
+    selectedPath,
+    schema,
+    filesLoading,
+    filesError,
+    preview,
+    summary,
+    init,
+    selectFile,
+    refreshPreview,
+    refreshSummary,
+    setPage,
+    setPageSize,
+    updateSort,
+    updateFilters
+  } = useDashboardStore((state) => ({
+    files: state.files,
+    recentFiles: state.recentFiles,
+    selectedPath: state.selectedPath,
+    schema: state.schema,
+    filesLoading: state.filesLoading,
+    filesError: state.filesError,
+    preview: state.preview,
+    summary: state.summary,
+    init: state.init,
+    selectFile: state.selectFile,
+    refreshPreview: state.refreshPreview,
+    refreshSummary: state.refreshSummary,
+    setPage: state.setPage,
+    setPageSize: state.setPageSize,
+    updateSort: state.updateSort,
+    updateFilters: state.updateFilters
+  }));
+
+  useEffect(() => {
+    void init();
+  }, [init]);
+
+  const subtitle = useMemo(() => {
+    if (!selectedPath) {
+      return "Select a file to explore preview data.";
+    }
+    return selectedPath;
+  }, [selectedPath]);
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.topBar}>
+        <div>
+          <h1 className={styles.title}>CSV Viewer</h1>
+          <p className={styles.subtitle}>{subtitle}</p>
+        </div>
+        <div className={styles.status}>
+          {preview.isLoading ? <span className={styles.badge}>Loading</span> : null}
+          {preview.error ? <span className={styles.badgeError}>Error</span> : null}
+        </div>
+      </header>
+      <div className={styles.layout}>
+        <FileBrowser
+          files={files}
+          recentFiles={recentFiles}
+          selectedPath={selectedPath}
+          isLoading={filesLoading}
+          error={filesError}
+          onSelect={(path) => void selectFile(path)}
+          onReload={() => void init()}
+        />
+        <div className={styles.mainContent}>
+          <DataPreviewGrid
+            schema={schema}
+            rows={preview.rows}
+            totalRows={preview.totalRows}
+            page={preview.page}
+            pageSize={preview.pageSize}
+            isLoading={preview.isLoading}
+            error={preview.error}
+            sort={preview.sort}
+            filters={preview.filters}
+            onSortChange={(model) => void updateSort(model)}
+            onFilterChange={(model) => void updateFilters(model)}
+            onReload={() => void refreshPreview()}
+          />
+          <PreviewControls
+            page={preview.page}
+            pageSize={preview.pageSize}
+            totalRows={preview.totalRows}
+            isLoading={preview.isLoading}
+            onPageChange={(page) => void setPage(page)}
+            onPageSizeChange={(size) => void setPageSize(size)}
+          />
+          <div className={styles.analytics}>
+            <SummaryPanel
+              schema={schema}
+              summaries={summary.data}
+              isLoading={summary.isLoading}
+              error={summary.error}
+              onRefresh={() => void refreshSummary()}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/services/csvService.ts
+================================================
+import { httpClient } from "./httpClient";
+import type {
+  ColumnSchema,
+  CsvFileInfo,
+  PreviewRequest,
+  PreviewResponse,
+  SummaryResponse
+} from "../types/api";
+
+export async function fetchCsvFiles(): Promise<CsvFileInfo[]> {
+  const response = await httpClient.get<CsvFileInfo[]>("/files");
+  return response.data;
+}
+
+export async function fetchSchema(path: string): Promise<ColumnSchema[]> {
+  const response = await httpClient.get<ColumnSchema[]>("/tables", {
+    params: { path }
+  });
+  return response.data;
+}
+
+export async function fetchPreview(payload: PreviewRequest): Promise<PreviewResponse> {
+  const response = await httpClient.post<PreviewResponse>("/preview", payload);
+  return response.data;
+}
+
+export async function fetchSummary(path: string, columns?: string[]): Promise<SummaryResponse> {
+  const response = await httpClient.post<SummaryResponse>("/summary", {
+    path,
+    columns
+  });
+  return response.data;
+}
+
+
+
+================================================
+FILE: frontend/src/services/httpClient.ts
+================================================
+import axios from "axios";
+import { env } from "../config/env";
+
+export const httpClient = axios.create({
+  baseURL: `${env.apiBaseUrl}/api/v1`,
+  timeout: 30_000
+});
+
+httpClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      const message =
+        error.response.data?.detail ??
+        error.response.data?.message ??
+        error.message;
+      return Promise.reject(new Error(String(message)));
+    }
+
+    if (error.request) {
+      return Promise.reject(new Error("서버 응답이 없습니다. 네트워크를 확인하세요."));
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+
+
+================================================
+FILE: frontend/src/state/useDashboardStore.ts
+================================================
+import { create } from "zustand";
+import type {
+  ColumnSchema,
+  CsvFileInfo,
+  FilterOperator,
+  SortDirection
+} from "../types/api";
+import { fetchCsvFiles, fetchPreview, fetchSchema, fetchSummary } from "../services/csvService";
+import type { PreviewResponse, SummaryResponse } from "../types/api";
+import { env } from "../config/env";
+
+export type SortSpec = { column: string; direction: SortDirection };
+export type FilterSpec = {
+  column: string;
+  operator: FilterOperator;
+  value?: unknown;
+};
+
+type PreviewState = {
+  rows: PreviewResponse["rows"];
+  columns: string[];
+  totalRows: number;
+  page: number;
+  pageSize: number;
+  sort: SortSpec[];
+  filters: FilterSpec[];
+  isLoading: boolean;
+  error?: string;
+};
+
+type SummaryState = {
+  data: SummaryResponse["summaries"];
+  isLoading: boolean;
+  error?: string;
+};
+
+type DashboardState = {
+  files: CsvFileInfo[];
+  recentFiles: string[];
+  selectedPath?: string;
+  schema: ColumnSchema[];
+  filesLoading: boolean;
+  filesError?: string;
+  preview: PreviewState;
+  summary: SummaryState;
+  init: () => Promise<void>;
+  selectFile: (path: string) => Promise<void>;
+  refreshPreview: () => Promise<void>;
+  setPage: (page: number) => Promise<void>;
+  setPageSize: (pageSize: number) => Promise<void>;
+  updateSort: (sort: SortSpec[]) => Promise<void>;
+  updateFilters: (filters: FilterSpec[]) => Promise<void>;
+  refreshSummary: () => Promise<void>;
+};
+
+const initialPreviewState: PreviewState = {
+  rows: [],
+  columns: [],
+  totalRows: 0,
+  page: 1,
+  pageSize: env.defaultPageSize,
+  sort: [],
+  filters: [],
+  isLoading: false
+};
+
+const initialSummaryState: SummaryState = {
+  data: [],
+  isLoading: false
+};
+
+export const useDashboardStore = create<DashboardState>((set, get) => ({
+  files: [],
+  recentFiles: [],
+  schema: [],
+  filesLoading: false,
+  filesError: undefined,
+  preview: initialPreviewState,
+  summary: initialSummaryState,
+  async init() {
+    set({ filesLoading: true, filesError: undefined });
+    try {
+      const files = await fetchCsvFiles();
+      set({ files, filesLoading: false });
+      if (files.length > 0) {
+        await get().selectFile(files[0].path);
+      }
+    } catch (error) {
+      set({
+        filesLoading: false,
+        filesError: error instanceof Error ? error.message : String(error)
+      });
+    }
+  },
+  async selectFile(path) {
+    const { selectedPath } = get();
+    if (selectedPath === path) {
+      return;
+    }
+    set({
+      selectedPath: path,
+      schema: [],
+      preview: { ...initialPreviewState, isLoading: true },
+      summary: { ...initialSummaryState, isLoading: true }
+    });
+
+    const updateRecent = (prev: string[]) => {
+      const next = prev.filter((item) => item !== path);
+      next.unshift(path);
+      return next.slice(0, 5);
+    };
+
+    set((state) => ({
+      recentFiles: updateRecent(state.recentFiles)
+    }));
+
+    try {
+      const schema = await fetchSchema(path);
+      set({ schema });
+    } catch (error) {
+      set({
+        schema: [],
+        preview: {
+          ...initialPreviewState,
+          isLoading: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "컬럼 스키마를 불러오지 못했습니다."
+        }
+      });
+      return;
+    }
+
+    await Promise.all([get().refreshPreview(), get().refreshSummary()]);
+  },
+  async refreshPreview() {
+    const { selectedPath, preview } = get();
+    if (!selectedPath) {
+      return;
+    }
+
+    set({
+      preview: {
+        ...preview,
+        isLoading: true,
+        error: undefined
+      }
+    });
+
+    try {
+      const payload = {
+        path: selectedPath,
+        limit: preview.pageSize,
+        offset: (preview.page - 1) * preview.pageSize,
+        order_by: preview.sort,
+        filters: preview.filters
+      };
+      const result = await fetchPreview(payload);
+      set({
+        preview: {
+          ...preview,
+          rows: result.rows,
+          columns: result.columns,
+          totalRows: result.total_rows,
+          isLoading: false,
+          error: undefined
+        }
+      });
+    } catch (error) {
+      set({
+        preview: {
+          ...preview,
+          rows: [],
+          columns: [],
+          totalRows: 0,
+          isLoading: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to load preview data."
+        }
+      });
+    }
+  },
+  async setPage(page) {
+    set((state) => ({
+      preview: { ...state.preview, page }
+    }));
+    await get().refreshPreview();
+  },
+  async setPageSize(pageSize) {
+    set((state) => ({
+      preview: { ...state.preview, pageSize, page: 1 }
+    }));
+    await get().refreshPreview();
+  },
+  async updateSort(sort) {
+    set((state) => ({
+      preview: { ...state.preview, sort, page: 1 }
+    }));
+    await get().refreshPreview();
+  },
+  async updateFilters(filters) {
+    set((state) => ({
+      preview: { ...state.preview, filters, page: 1 }
+    }));
+    await get().refreshPreview();
+  },
+  async refreshSummary() {
+    const { selectedPath, schema } = get();
+    if (!selectedPath || schema.length === 0) {
+      return;
+    }
+    set({ summary: { ...initialSummaryState, isLoading: true } });
+    try {
+      const response = await fetchSummary(selectedPath);
+      set({
+        summary: { data: response.summaries, isLoading: false }
+      });
+    } catch (error) {
+      set({
+        summary: {
+          ...initialSummaryState,
+          isLoading: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to load summary data."
+        }
+      });
+    }
+  }
+}));
+
+
+
+================================================
+FILE: frontend/src/styles/global.css
+================================================
+:root {
+  color-scheme: light dark;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+  background-color: var(--surface-background);
+  color: var(--text-primary);
+  --surface-background: #111827;
+  --surface-panel: #1f2937;
+  --surface-panel-light: #f9fafb;
+  --text-primary: #f9fafb;
+  --text-secondary: #94a3b8;
+  --accent: #38bdf8;
+  --accent-strong: #0ea5e9;
+  --border: rgba(148, 163, 184, 0.2);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface-background: #f9fafb;
+    --surface-panel: #ffffff;
+    --surface-panel-light: #f3f4f6;
+    --text-primary: #111827;
+    --text-secondary: #475569;
+    --border: rgba(15, 23, 42, 0.1);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background-color: var(--surface-background);
+  color: var(--text-primary);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+
+
+================================================
+FILE: frontend/src/types/api.ts
+================================================
+export type CsvFileInfo = {
+  name: string;
+  path: string;
+  size_bytes: number;
+  modified_at: string;
+};
+
+export type ColumnSchema = {
+  name: string;
+  dtype: string;
+  nullable: boolean;
+};
+
+export type FilterOperator = "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "contains";
+
+export type SortDirection = "asc" | "desc";
+
+export type PreviewRequest = {
+  path: string;
+  limit: number;
+  offset: number;
+  order_by?: Array<{ column: string; direction: SortDirection }>;
+  filters?: Array<{ column: string; operator: FilterOperator; value?: unknown }>;
+};
+
+export type PreviewResponse = {
+  rows: Array<Record<string, unknown>>;
+  total_rows: number;
+  columns: string[];
+};
+
+export type SummaryResponse = {
+  summaries: Array<{
+    column: string;
+    dtype: string;
+    total_rows: number;
+    null_count: number;
+    non_null_count: number;
+    distinct_count: number;
+    min_value?: number | string | null;
+    max_value?: number | string | null;
+    mean_value?: number | null;
+    stddev_value?: number | null;
+  }>;
+};
+
+
+
+================================================
+FILE: scripts/README.md
+================================================
+# Scripts
+
+데이터 전처리, 변환, 관리용 스크립트를 모읍니다.
+
+- `convert_to_parquet.py`: CSV를 Parquet으로 변환하는 유틸리티(작성 예정)
+- `duckdb_profile.py`: DuckDB로 CSV 로딩 성능을 측정하는 예제(작성 예정)
+
+각 스크립트는 독립적으로 실행 가능하도록 엔트리포인트와 CLI 인자를 제공합니다.
+
+
+
+================================================
+FILE: scripts/convert_to_parquet.py
+================================================
+"""
+Convert large CSV files to Parquet using DuckDB.
+
+Usage:
+    python -m scripts.convert_to_parquet --csv data/train.csv
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+from pathlib import Path
+
+from backend.app.core.settings import get_settings
+from backend.app.db.duckdb_session import duckdb_connection
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Convert CSV files to Parquet via DuckDB.")
+    parser.add_argument(
+        "--csv",
+        type=Path,
+        required=True,
+        help="Path to the input CSV file (relative paths resolved against CSV_DATA_DIR).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output Parquet path. Defaults to the CSV path with .parquet suffix.",
+    )
+    parser.add_argument(
+        "--row-group-size",
+        type=int,
+        default=100_000,
+        help="Row group size for the Parquet file (default: 100000).",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite the Parquet file if it already exists.",
+    )
+    return parser.parse_args()
+
+
+def resolve_paths(csv_path: Path, output_path: Path | None) -> tuple[Path, Path]:
+    settings = get_settings()
+    base_csv = settings.csv_data_dir
+
+    csv_resolved = csv_path if csv_path.is_absolute() else base_csv / csv_path
+    if not csv_resolved.exists():
+        raise FileNotFoundError(f"CSV file not found: {csv_resolved}")
+
+    if output_path is None:
+        output_resolved = csv_resolved.with_suffix(".parquet")
+    else:
+        output_resolved = output_path if output_path.is_absolute() else base_csv / output_path
+
+    output_resolved.parent.mkdir(parents=True, exist_ok=True)
+    return csv_resolved, output_resolved
+
+
+def convert(csv_path: Path, output_path: Path, *, row_group_size: int, overwrite: bool) -> None:
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(
+            f"Output file already exists: {output_path}. Use --overwrite to replace it."
+        )
+
+    settings = get_settings()
+    csv_literal = str(csv_path).replace("'", "''")
+    parquet_literal = str(output_path).replace("'", "''")
+
+    start = time.perf_counter()
+    with duckdb_connection() as conn:
+        conn.execute(
+            f"""
+            COPY (
+                SELECT *
+                FROM read_csv_auto('{csv_literal}', SAMPLE_SIZE={int(settings.duckdb_sample_size)})
+            ) TO '{parquet_literal}'
+            (FORMAT 'parquet', ROW_GROUP_SIZE {int(row_group_size)})
+            """
+        )
+    duration = time.perf_counter() - start
+    print(f"[info] Wrote Parquet: {output_path} ({duration:.2f}s)")
+
+
+def main() -> int:
+    args = parse_args()
+    csv_path, output_path = resolve_paths(args.csv, args.output)
+
+    try:
+        convert(
+            csv_path,
+            output_path,
+            row_group_size=max(args.row_group_size, 1),
+            overwrite=args.overwrite,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"[error] {exc}")
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+
+================================================
+FILE: scripts/duckdb_profile.py
+================================================
+"""
+Quick DuckDB CSV loader prototype.
+
+Run:
+    python scripts/duckdb_profile.py --csv data/train.csv --limit 10
+"""
+
+from __future__ import annotations
+
+import argparse
+import pathlib
+import sys
+import time
+
+import duckdb
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Profile CSV loading with DuckDB."
+    )
+    parser.add_argument(
+        "--csv",
+        type=pathlib.Path,
+        default=pathlib.Path("data/train.csv"),
+        help="Target CSV file path (default: data/train.csv).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=5,
+        help="Number of rows to preview.",
+    )
+    parser.add_argument(
+        "--sample",
+        type=int,
+        default=100000,
+        help=(
+            "Number of rows DuckDB should scan when inferring schema. "
+            "Lower values speed up startup for huge files."
+        ),
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=0,
+        help="Number of DuckDB threads (0 lets DuckDB decide).",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    csv_path = args.csv.resolve()
+
+    if not csv_path.exists():
+        print(f"[error] CSV file not found: {csv_path}", file=sys.stderr)
+        return 1
+
+    print(f"[info] Loading CSV with DuckDB: {csv_path}")
+    print(f"[info] Preview limit={args.limit}, sample={args.sample}, threads={args.threads or 'auto'}")
+
+    # Configure DuckDB
+    connect_kwargs = {}
+    if args.threads:
+        connect_kwargs["config"] = {"threads": args.threads}
+
+    conn = duckdb.connect(database=":memory:", read_only=False, **connect_kwargs)
+    if args.threads:
+        conn.execute(f"PRAGMA threads={args.threads};")
+
+    start = time.perf_counter()
+    relation = conn.from_csv_auto(str(csv_path), sample_size=args.sample)
+    relation.create_view("csv_view")
+    schema = conn.execute("DESCRIBE csv_view").fetchall()
+    load_duration = time.perf_counter() - start
+
+    row_start = time.perf_counter()
+    preview_rows = conn.execute(
+        "SELECT * FROM csv_view LIMIT ?",
+        [args.limit],
+    ).fetchdf()
+    preview_duration = time.perf_counter() - row_start
+
+    count_start = time.perf_counter()
+    total_rows = conn.execute("SELECT COUNT(*) FROM csv_view").fetchone()[0]
+    count_duration = time.perf_counter() - count_start
+
+    print(f"[info] Schema inference took {load_duration:.2f}s, Columns={len(schema)}")
+    print(f"[info] Preview query took {preview_duration:.2f}s")
+    print(f"[info] Row count query took {count_duration:.2f}s, Total rows={total_rows}")
+    print("[info] Preview:")
+    print(preview_rows.to_string(index=False))
+
+    conn.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
