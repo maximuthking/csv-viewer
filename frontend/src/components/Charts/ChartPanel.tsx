@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
+import type { ChangeEvent } from 'react';
 import ReactECharts from 'echarts-for-react';
-import type { EChartsOption } from 'echarts';
+import type { EChartsOption, SeriesOption } from 'echarts';
 import { useDashboardStore, ChartType } from '../../state/useDashboardStore';
 import styles from './ChartPanel.module.css';
 
@@ -31,6 +32,39 @@ export function ChartPanel() {
     )
   }), [schema]);
 
+  const handleChartTypeChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextType = event.target.value as ChartType;
+    if (nextType === chart_type) {
+      return;
+    }
+
+    if (nextType === "scatter") {
+      const numericColumnNames = numericColumns.map((col) => col.name);
+      const candidateColumns = [
+        ...value_columns.filter((col): col is string => numericColumnNames.includes(col)),
+        ...numericColumnNames
+      ];
+      const scatterValueColumns = Array.from(new Set(candidateColumns)).slice(0, 2);
+
+      void setChartOptions({
+        chart_type: nextType,
+        time_column: null,
+        value_columns: scatterValueColumns
+      });
+      return;
+    }
+
+    const defaultTimeColumn = timeColumns.length > 0 ? (time_column ?? timeColumns[0].name) : null;
+    const defaultValueColumn = value_columns[0] ?? numericColumns[0]?.name ?? null;
+    const nextValueColumns = defaultValueColumn ? [defaultValueColumn] : [];
+
+    void setChartOptions({
+      chart_type: nextType,
+      time_column: defaultTimeColumn,
+      value_columns: nextValueColumns
+    });
+  };
+
   const options = useMemo<EChartsOption>(() => {
     const isTimeSeries = chart_type === "line" || chart_type === "bar";
 
@@ -41,23 +75,108 @@ export function ChartPanel() {
     if (isTimeSeries) {
       xAxis = { type: "time" };
       yAxis = { type: "value", scale: true };
-      seriesData = value_columns.map((col) => ({
-        name: col,
-        type: chart_type,
-        data: data.map((row) => [row[time_column!], row[col]]),
-        symbolSize: (value: any[], params: any) => {
-          const isInterpolated = data[params.dataIndex]?.is_interpolated;
-          return isInterpolated ? 0 : 6;
-        },
-        smooth: true
-      }));
+      const safeTimeColumn = time_column ?? "";
+
+      const coerceToAxisValue = (value: unknown): string | number | Date | null => {
+        if (value === null || value === undefined) {
+          return null;
+        }
+        if (value instanceof Date || typeof value === "string" || typeof value === "number") {
+          return value;
+        }
+        if (typeof value === "boolean") {
+          return value ? 1 : 0;
+        }
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : null;
+      };
+
+      const coerceToNumber = (value: unknown): number | null => {
+        if (typeof value === "number") {
+          return Number.isFinite(value) ? value : null;
+        }
+        if (value === null || value === undefined) {
+          return null;
+        }
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : null;
+      };
+
+      const baseSeries = value_columns.map((col) => {
+        const seriesPoints = data.reduce<Array<{ value: [string | number | Date, number]; rowIndex: number }>>(
+          (acc, row, rowIndex) => {
+            const x = coerceToAxisValue(row[safeTimeColumn]);
+            const y = coerceToNumber(row[col]);
+            if (x === null || y === null) {
+              return acc;
+            }
+            acc.push({ value: [x, y], rowIndex });
+            return acc;
+          },
+          []
+        );
+        const normalizedData = seriesPoints.map((point) => point.value);
+
+        if (chart_type === "line") {
+          const indexLookup = seriesPoints.map((point) => point.rowIndex);
+          const lineSeries: SeriesOption = {
+            name: col,
+            type: "line",
+            data: normalizedData,
+            symbolSize: (_value, params) => {
+              const originalIndex = indexLookup[params.dataIndex];
+              const originalRow = typeof originalIndex === "number" ? data[originalIndex] : undefined;
+              const isInterpolated =
+                typeof originalRow === "object" && originalRow !== null
+                  ? Boolean((originalRow as Record<string, unknown>)["is_interpolated"])
+                  : false;
+              return isInterpolated ? 0 : 6;
+            },
+            smooth: true
+          };
+          return lineSeries;
+        }
+
+        const barSeries: SeriesOption = {
+          name: col,
+          type: "bar",
+          data: normalizedData
+        };
+        return barSeries;
+      });
+
+      seriesData = baseSeries;
     } else { // Scatter
       xAxis = { type: "value", scale: true };
       yAxis = { type: "value", scale: true };
-      seriesData = [{
-        type: 'scatter',
-        data: data.map((row) => [row[value_columns[0]], row[value_columns[1]]])
-      }];
+      const [xColumn, yColumn] = value_columns;
+      const coerceToNumber = (value: unknown): number | null => {
+        if (typeof value === "number") {
+          return Number.isFinite(value) ? value : null;
+        }
+        if (value === null || value === undefined) {
+          return null;
+        }
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : null;
+      };
+
+      const scatterPoints = xColumn && yColumn
+        ? data
+          .map((row) => {
+            const x = coerceToNumber(row[xColumn]);
+            const y = coerceToNumber(row[yColumn]);
+            return x === null || y === null ? null : [x, y] as [number, number];
+          })
+          .filter((point): point is [number, number] => point !== null)
+        : [];
+
+      const scatterSeries: SeriesOption = {
+        name: xColumn && yColumn ? `${xColumn} vs ${yColumn}` : "Scatter",
+        type: "scatter",
+        data: scatterPoints
+      };
+      seriesData = [scatterSeries];
     }
 
     return {
@@ -65,13 +184,15 @@ export function ChartPanel() {
       xAxis,
       yAxis,
       series: seriesData,
-      tooltip: { trigger: "axis" },
-      legend: {
-        show: value_columns.length > 1,
-        top: 40,
-        left: "center",
-        type: "scroll"
-      },
+      tooltip: { trigger: isTimeSeries ? "axis" : "item" },
+      legend: isTimeSeries
+        ? {
+            show: value_columns.length > 1,
+            top: 40,
+            left: "center",
+            type: "scroll"
+          }
+        : { show: false },
     };
   }, [chart_type, data, time_column, value_columns]);
 
@@ -85,7 +206,7 @@ export function ChartPanel() {
           Chart Type
           <select
             value={chart_type}
-            onChange={(e) => setChartOptions({ chart_type: e.target.value as ChartType })}
+            onChange={handleChartTypeChange}
             disabled={isLoading}
           >
             {CHART_TYPE_OPTIONS.map((opt) => (

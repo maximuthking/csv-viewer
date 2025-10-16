@@ -46,7 +46,8 @@ export type SummaryResponse = {
 
 export type ChartDataRequest = {
   path: string;
-  time_column: string;
+  chart_type: "line" | "bar" | "scatter";
+  time_column: string | null;
   value_columns: string[];
   time_bucket: string;
   interpolation: "none" | "forward_fill";
