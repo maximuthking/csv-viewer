@@ -166,9 +166,9 @@ class ChartDataRequest(BaseModel):
     time_column: Optional[str] = None  # scatter 에서는 사용되지 않을 수 있음
     value_columns: List[str]
     time_bucket: str = Field("1 day", description="e.g., '1 minute', '1 hour', '1 day'")
-    interpolation: Literal["none", "ffill", "bfill", "linear"] = Field(
+    interpolation: Literal["none", "ffill", "bfill", "linear", "spline", "polynomial"] = Field(
         "none",
-        description="e.g., 'none', 'ffill', 'bfill', 'linear'",
+        description="e.g., 'none', 'ffill', 'bfill', 'linear', 'spline', 'polynomial'",
     )
 
     @field_validator("value_columns")

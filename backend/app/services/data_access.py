@@ -695,7 +695,7 @@ def get_chart_data(
             """
             return conn.execute(final_query).fetch_df()
 
-        if interpolation in {"bfill", "linear"}:
+        if interpolation in {"bfill", "linear", "spline", "polynomial"}:
             value_select_clause = ",\n                    ".join(
                 [
                     f"joined.{_quote_identifier(col)} AS {_quote_identifier(col)}"
@@ -718,9 +718,25 @@ def get_chart_data(
                 return df
 
             if interpolation == "bfill":
-                df[value_columns] = df[value_columns].fillna(method="bfill")
-            else:
+                df[value_columns] = df[value_columns].bfill()
+            elif interpolation == "linear":
                 df[value_columns] = df[value_columns].interpolate(method="linear")
+            else:
+                order = 3
+                available_points = min(df[col].count() for col in value_columns)
+                if available_points < order + 1:
+                    raise ValueError(
+                        f"{interpolation} interpolation requires at least {order + 1} "
+                        f"observations per value column (found {available_points})."
+                    )
+                try:
+                    df[value_columns] = df[value_columns].interpolate(
+                        method=interpolation, order=order
+                    )
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Failed to apply {interpolation} interpolation: {exc}"
+                    ) from exc
 
             df["is_interpolated"] = df["is_interpolated"].astype(bool)
             return df

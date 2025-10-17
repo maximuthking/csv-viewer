@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from backend.app.core import settings
 from backend.app.services import data_access
@@ -23,6 +24,23 @@ def create_fixture_csv(tmp_path: Path) -> Path:
             "time": ["2024-01-01 00:00:00", "2024-01-01 00:05:00"],
             "pv_id": ["PV1", "PV2"],
             "value": [1.5, 3.2],
+        }
+    )
+    df.to_csv(csv_path, index=False)
+    return csv_path
+
+
+def create_chart_fixture_csv(tmp_path: Path) -> Path:
+    csv_path = tmp_path / "chart_fixture.csv"
+    df = pd.DataFrame(
+        {
+            "time": [
+                "2024-01-01 00:00:00",
+                "2024-01-01 00:10:00",
+                "2024-01-01 00:20:00",
+                "2024-01-01 00:30:00",
+            ],
+            "value": [10.0, 40.0, 70.0, 100.0],
         }
     )
     df.to_csv(csv_path, index=False)
@@ -88,3 +106,72 @@ def test_locate_row_position(tmp_path: Path, monkeypatch) -> None:
     )
     assert contains_match is not None
     assert contains_match.row_index == 0
+
+
+def test_chart_data_interpolation_methods(tmp_path: Path, monkeypatch) -> None:
+    """Ensure interpolation modes fill gaps as expected."""
+
+    csv_path = create_chart_fixture_csv(tmp_path)
+    duckdb_path = tmp_path / "catalog.duckdb"
+
+    monkeypatch.setenv("CSV_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DUCKDB_DATABASE_PATH", str(duckdb_path))
+    monkeypatch.setenv("DUCKDB_SAMPLE_SIZE", "1000")
+    settings.reset_settings_cache()
+
+    def bucket_value(df: pd.DataFrame, minutes: int) -> float:
+        timestamp = pd.Timestamp("2024-01-01 00:00:00") + pd.Timedelta(minutes=minutes)
+        row = df[df["time"] == timestamp]
+        assert not row.empty
+        return float(row.iloc[0]["value"])
+
+    common_kwargs = dict(
+        chart_type="line",
+        time_column="time",
+        value_columns=["value"],
+        time_bucket="5 minutes",
+    )
+
+    result_none = data_access.get_chart_data(csv_path.name, interpolation="none", **common_kwargs)
+    assert len(result_none) == 4
+    assert result_none["value"].tolist() == [10.0, 40.0, 70.0, 100.0]
+
+    result_bfill = data_access.get_chart_data(csv_path.name, interpolation="bfill", **common_kwargs)
+    assert not result_bfill["value"].isna().any()
+    assert len(result_bfill) == 7
+    assert bucket_value(result_bfill, 5) == pytest.approx(40.0)
+    assert bucket_value(result_bfill, 15) == pytest.approx(70.0)
+    assert bucket_value(result_bfill, 25) == pytest.approx(100.0)
+
+    result_linear = data_access.get_chart_data(csv_path.name, interpolation="linear", **common_kwargs)
+    assert not result_linear["value"].isna().any()
+    assert len(result_linear) == 7
+    assert bucket_value(result_linear, 5) == pytest.approx(25.0)
+    assert bucket_value(result_linear, 15) == pytest.approx(55.0)
+    assert bucket_value(result_linear, 25) == pytest.approx(85.0)
+
+    result_spline = data_access.get_chart_data(csv_path.name, interpolation="spline", **common_kwargs)
+    assert not result_spline["value"].isna().any()
+    assert len(result_spline) == 7
+    assert bucket_value(result_spline, 5) == pytest.approx(25.0, abs=1e-6)
+    assert bucket_value(result_spline, 15) == pytest.approx(55.0, abs=1e-6)
+    assert bucket_value(result_spline, 25) == pytest.approx(85.0, abs=1e-6)
+
+    result_polynomial = data_access.get_chart_data(
+        csv_path.name, interpolation="polynomial", **common_kwargs
+    )
+    assert not result_polynomial["value"].isna().any()
+    assert len(result_polynomial) == 7
+    assert bucket_value(result_polynomial, 5) == pytest.approx(25.0, abs=1e-6)
+    assert bucket_value(result_polynomial, 15) == pytest.approx(55.0, abs=1e-6)
+    assert bucket_value(result_polynomial, 25) == pytest.approx(85.0, abs=1e-6)
+
+    # is_interpolated 표시는 보간된 행에서 True로 유지된다.
+    for df in (result_bfill, result_linear, result_spline, result_polynomial):
+        assert df["is_interpolated"].dtype == bool
+        interpolated_flags = df.loc[df["time"].isin(
+            pd.to_datetime(
+                ["2024-01-01 00:05:00", "2024-01-01 00:15:00", "2024-01-01 00:25:00"]
+            )
+        ), "is_interpolated"].tolist()
+        assert all(interpolated_flags)

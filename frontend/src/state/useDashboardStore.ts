@@ -76,7 +76,7 @@ export type ChartOptions = {
   time_column: string | null;
   value_columns: string[];
   time_bucket: string;
-  interpolation: "none" | "ffill" | "bfill" | "linear";
+  interpolation: "none" | "ffill" | "bfill" | "linear" | "spline" | "polynomial";
 };
 
 type ChartState = {
