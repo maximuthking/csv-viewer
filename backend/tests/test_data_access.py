@@ -57,3 +57,34 @@ def test_data_access_end_to_end(tmp_path: Path, monkeypatch) -> None:
 
     sample = data_access.sample_rows(csv_path.name, sample_size=1)
     assert len(sample.index) == 1
+
+
+def test_locate_row_position(tmp_path: Path, monkeypatch) -> None:
+    """Locate the row index for a given value respecting ordering."""
+
+    csv_path = create_fixture_csv(tmp_path)
+    duckdb_path = tmp_path / "catalog.duckdb"
+
+    monkeypatch.setenv("CSV_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DUCKDB_DATABASE_PATH", str(duckdb_path))
+    monkeypatch.setenv("DUCKDB_SAMPLE_SIZE", "1000")
+    settings.reset_settings_cache()
+
+    exact_match = data_access.locate_row_position(
+        csv_path.name,
+        column="pv_id",
+        value="PV2",
+        match_mode="exact",
+    )
+    assert exact_match is not None
+    assert exact_match.row_index == 1
+    assert exact_match.value == "PV2"
+
+    contains_match = data_access.locate_row_position(
+        csv_path.name,
+        column="pv_id",
+        value="V1",
+        match_mode="contains",
+    )
+    assert contains_match is not None
+    assert contains_match.row_index == 0

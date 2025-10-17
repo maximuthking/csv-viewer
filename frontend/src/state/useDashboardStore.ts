@@ -12,7 +12,8 @@ import {
   fetchCsvFiles,
   fetchPreview,
   fetchSchema,
-  fetchSummary
+  fetchSummary,
+  locatePreviewValue as locatePreviewValueService
 } from "../services/csvService";
 import type { PreviewResponse, SummaryResponse } from "../types/api";
 import { env } from "../config/env";
@@ -22,6 +23,25 @@ export type FilterSpec = {
   column: string;
   operator: FilterOperator;
   value?: unknown;
+};
+
+type PreviewSearchMatch = {
+  page: number;
+  globalRowIndex: number;
+  column: string;
+  value: unknown;
+};
+
+type PendingScrollState = {
+  globalRowIndex: number;
+  column?: string;
+  token: number;
+};
+
+type HighlightState = {
+  rowIndexInPage: number;
+  column?: string;
+  token: number;
 };
 
 type PreviewState = {
@@ -34,6 +54,13 @@ type PreviewState = {
   filters: FilterSpec[];
   isLoading: boolean;
   error?: string;
+  searchTerm: string;
+  searchColumn?: string;
+  searchInProgress: boolean;
+  searchError?: string;
+  lastSearchMatch?: PreviewSearchMatch;
+  pendingScroll?: PendingScrollState;
+  highlight?: HighlightState;
 };
 
 type SummaryState = {
@@ -77,6 +104,8 @@ type DashboardState = {
   setPageSize: (pageSize: number) => Promise<void>;
   updateSort: (sort: SortSpec[]) => Promise<void>;
   updateFilters: (filters: FilterSpec[]) => Promise<void>;
+  locatePreviewValue: (options: { column: string; value: unknown; matchMode?: "contains" | "exact" }) => Promise<void>;
+  clearPreviewSearch: () => void;
   refreshSummary: () => Promise<void>;
   refreshChart: () => Promise<void>;
   setChartOptions: (options: Partial<ChartOptions>) => Promise<void>;
@@ -90,7 +119,9 @@ const initialPreviewState: PreviewState = {
   pageSize: env.defaultPageSize,
   sort: [],
   filters: [],
-  isLoading: false
+  isLoading: false,
+  searchTerm: "",
+  searchInProgress: false
 };
 
 const initialSummaryState: SummaryState = {
@@ -207,7 +238,9 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       return;
     }
 
-    set({ preview: { ...preview, isLoading: true, error: undefined } });
+    set((state) => ({
+      preview: { ...state.preview, isLoading: true, error: undefined }
+    }));
 
     try {
       const payload = {
@@ -218,44 +251,236 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
         filters: preview.filters
       };
       const result = await fetchPreview(payload);
-      set({
-        preview: {
-          ...preview,
-          rows: result.rows,
-          columns: result.columns,
-          totalRows: result.total_rows,
-          isLoading: false,
-          error: undefined
+      set((state) => {
+        const current = state.preview;
+        const pending = current.pendingScroll;
+        let highlight = current.highlight;
+        let pendingScroll = pending;
+
+        if (pending) {
+          const targetPage = Math.floor(pending.globalRowIndex / current.pageSize) + 1;
+          if (targetPage === current.page) {
+            highlight = {
+              rowIndexInPage: pending.globalRowIndex % current.pageSize,
+              column: pending.column,
+              token: pending.token
+            };
+            pendingScroll = undefined;
+          }
         }
+
+        return {
+          preview: {
+            ...current,
+            rows: result.rows,
+            columns: result.columns,
+            totalRows: result.total_rows,
+            isLoading: false,
+            error: undefined,
+            highlight,
+            pendingScroll
+          }
+        };
       });
     } catch (error) {
-      set({
+      set((state) => ({
         preview: {
-          ...preview,
+          ...state.preview,
           rows: [],
           columns: [],
           totalRows: 0,
           isLoading: false,
+          searchInProgress: false,
           error: error instanceof Error ? error.message : "Failed to load preview data."
         }
-      });
+      }));
     }
   },
   async setPage(page) {
-    set((state) => ({ preview: { ...state.preview, page } }));
+    set((state) => ({
+      preview: {
+        ...state.preview,
+        page,
+        highlight: undefined,
+        pendingScroll: undefined
+      }
+    }));
     await get().refreshPreview();
   },
   async setPageSize(pageSize) {
-    set((state) => ({ preview: { ...state.preview, pageSize, page: 1 } }));
+    set((state) => ({
+      preview: {
+        ...state.preview,
+        pageSize,
+        page: 1,
+        highlight: undefined,
+        pendingScroll: undefined
+      }
+    }));
     await get().refreshPreview();
   },
   async updateSort(sort) {
-    set((state) => ({ preview: { ...state.preview, sort, page: 1 } }));
+    set((state) => ({
+      preview: {
+        ...state.preview,
+        sort,
+        page: 1,
+        highlight: undefined,
+        pendingScroll: undefined,
+        lastSearchMatch: undefined
+      }
+    }));
     await get().refreshPreview();
   },
   async updateFilters(filters) {
-    set((state) => ({ preview: { ...state.preview, filters, page: 1 } }));
+    set((state) => ({
+      preview: {
+        ...state.preview,
+        filters,
+        page: 1,
+        highlight: undefined,
+        pendingScroll: undefined,
+        lastSearchMatch: undefined
+      }
+    }));
     await get().refreshPreview();
+  },
+  async locatePreviewValue({ column, value, matchMode = "contains" }) {
+    const { selectedPath, preview } = get();
+    if (!selectedPath) {
+      return;
+    }
+    if (!column) {
+      set((state) => ({
+        preview: {
+          ...state.preview,
+          searchError: "검색할 열을 선택하세요.",
+          searchInProgress: false
+        }
+      }));
+      return;
+    }
+
+    const searchTerm =
+      typeof value === "string"
+        ? value
+        : value == null
+          ? ""
+          : String(value);
+
+    if (!searchTerm.trim()) {
+      set((state) => ({
+        preview: {
+          ...state.preview,
+          searchColumn: column,
+          searchTerm,
+          searchError: "검색어를 입력하세요.",
+          searchInProgress: false
+        }
+      }));
+      return;
+    }
+
+    set((state) => ({
+      preview: {
+        ...state.preview,
+        searchColumn: column,
+        searchTerm,
+        searchInProgress: true,
+        searchError: undefined
+      }
+    }));
+
+    try {
+      const response = await locatePreviewValueService({
+        path: selectedPath,
+        column,
+        value,
+        match_mode: matchMode,
+        order_by: preview.sort,
+        filters: preview.filters
+      });
+
+      if (!response.found || response.row_index == null) {
+        set((state) => ({
+          preview: {
+            ...state.preview,
+            searchInProgress: false,
+            searchError: "일치하는 행을 찾을 수 없습니다.",
+            highlight: undefined,
+            pendingScroll: undefined,
+            lastSearchMatch: undefined
+          }
+        }));
+        return;
+      }
+
+      const currentState = get().preview;
+      const pageSize = currentState.pageSize;
+      const currentPage = currentState.page;
+      const rowIndex = Number(response.row_index);
+      const targetPage = Math.floor(rowIndex / pageSize) + 1;
+      const rowIndexInPage = rowIndex % pageSize;
+      const shouldReload = targetPage !== currentPage;
+      const nextToken = (currentState.highlight?.token ?? 0) + 1;
+
+      set((state) => ({
+        preview: {
+          ...state.preview,
+          page: targetPage,
+          searchInProgress: false,
+          searchError: undefined,
+          searchColumn: column,
+          searchTerm,
+          lastSearchMatch: {
+            page: targetPage,
+            globalRowIndex: rowIndex,
+            column,
+            value: response.value ?? searchTerm
+          },
+          pendingScroll: shouldReload
+            ? {
+                globalRowIndex: rowIndex,
+                column,
+                token: nextToken
+              }
+            : undefined,
+          highlight: shouldReload
+            ? undefined
+            : {
+                rowIndexInPage,
+                column,
+                token: nextToken
+              }
+        }
+      }));
+
+      if (shouldReload) {
+        await get().refreshPreview();
+      }
+    } catch (error) {
+      set((state) => ({
+        preview: {
+          ...state.preview,
+          searchInProgress: false,
+          searchError: error instanceof Error ? error.message : "행 검색에 실패했습니다."
+        }
+      }));
+    }
+  },
+  clearPreviewSearch() {
+    set((state) => ({
+      preview: {
+        ...state.preview,
+        searchTerm: "",
+        searchColumn: undefined,
+        searchError: undefined,
+        searchInProgress: false,
+        highlight: undefined,
+        pendingScroll: undefined,
+        lastSearchMatch: undefined
+      }
+    }));
   },
   async refreshSummary() {
     const { selectedPath, schema } = get();

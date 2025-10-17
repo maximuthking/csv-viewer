@@ -116,6 +116,38 @@ async def preview(request: schemas.PreviewRequest) -> schemas.PreviewResponse:
     return schemas.PreviewResponse(rows=rows, total_rows=total_rows, columns=columns)
 
 
+@router.post("/preview/locate", response_model=schemas.PreviewLocateResponse)
+async def locate_preview_value(request: schemas.PreviewLocateRequest) -> schemas.PreviewLocateResponse:
+    """Preview ?곗씠??以묕컻??媛瑜??섑??⑤씠?? ?쒖슜?쒕떎."""
+
+    filters = _to_filter_specs(request.filters)
+    order_by = _to_sort_specs(request.order_by)
+
+    try:
+        result = data_access.locate_row_position(
+            request.path,
+            column=request.column,
+            value=request.value,
+            match_mode=request.match_mode.value,
+            filters=filters,
+            order_by=order_by,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if result is None:
+        return schemas.PreviewLocateResponse(found=False)
+
+    return schemas.PreviewLocateResponse(
+        found=True,
+        row_index=result.row_index,
+        column=request.column,
+        value=result.value,
+    )
+
+
 @router.post("/query", response_model=schemas.QueryResponse)
 async def run_query(request: schemas.QueryRequest) -> schemas.QueryResponse:
     """사용자 정의 SELECT 쿼리를 실행한다."""

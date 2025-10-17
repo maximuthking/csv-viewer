@@ -59,6 +59,13 @@ class FilterSpec(BaseModel):
     value: Optional[Any] = None
 
 
+class LocateMatchMode(str, Enum):
+    """寃?됱쓽 鍮꾩젙."""
+
+    contains = "contains"
+    exact = "exact"
+
+
 class PreviewRequest(BaseModel):
     """데이터 미리보기 요청."""
 
@@ -75,6 +82,26 @@ class PreviewResponse(BaseModel):
     rows: List[dict[str, Any]]
     total_rows: int
     columns: List[str]
+
+
+class PreviewLocateRequest(BaseModel):
+    """?곗씠??誘몃━蹂닿린??媛瑜??섑??⑤씠??寃??."""
+
+    path: str
+    column: str
+    value: Any
+    match_mode: LocateMatchMode = LocateMatchMode.contains
+    order_by: List[SortSpec] = Field(default_factory=list)
+    filters: List[FilterSpec] = Field(default_factory=list)
+
+
+class PreviewLocateResponse(BaseModel):
+    """寃臾명씠 ???쓽 寃곌낵."""
+
+    found: bool
+    row_index: Optional[int] = None
+    column: Optional[str] = None
+    value: Optional[Any] = None
 
 
 class QueryRequest(BaseModel):

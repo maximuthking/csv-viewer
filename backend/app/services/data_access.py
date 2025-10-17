@@ -56,6 +56,14 @@ class ColumnSummary:
     stddev_value: float | None = None
 
 
+@dataclass(slots=True)
+class LocateResult:
+    """Result of locating a row index matching a search value."""
+
+    row_index: int
+    value: Any | None
+
+
 def list_csv_files(patterns: Sequence[str] | None = None) -> List[Path]:
     """Return data files located inside the configured data directory.
 
@@ -220,6 +228,21 @@ def _build_order_clause(order_by: Sequence[SortSpec] | None) -> str:
     return " ORDER BY " + ", ".join(parts)
 
 
+def _build_window_order_clause(order_by: Sequence[SortSpec] | None) -> str:
+    """Build the ORDER BY portion for window functions."""
+
+    if not order_by:
+        return ""
+
+    parts = []
+    for spec in order_by:
+        column = _quote_identifier(spec.column)
+        direction = "DESC" if spec.descending else "ASC"
+        parts.append(f'"{column}" {direction}')
+
+    return "ORDER BY " + ", ".join(parts)
+
+
 def preview_csv(
     csv_path: Path | str,
     *,
@@ -266,6 +289,74 @@ def count_rows(
         total = conn.execute(query, params).fetchone()[0]
 
     return int(total or 0)
+
+
+def locate_row_position(
+    csv_path: Path | str,
+    *,
+    column: str,
+    value: Any | None,
+    match_mode: str = "contains",
+    sample_size: int | None = None,
+    filters: Sequence[FilterSpec] | None = None,
+    order_by: Sequence[SortSpec] | None = None,
+) -> LocateResult | None:
+    """Locate the zero-based row index for the first matching value."""
+
+    if not column:
+        raise ValueError("Column name is required for locating a value.")
+
+    normalized_mode = (match_mode or "contains").lower()
+    if normalized_mode not in {"contains", "exact"}:
+        raise ValueError(f"Unsupported match mode: {match_mode}")
+
+    column_identifier = _quote_identifier(column)
+
+    with duckdb_connection() as conn:
+        _register_csv_view(conn, csv_path, sample_size=sample_size)
+
+        params: list[Any] = []
+        where_clause = _build_filters_clause(filters, params)
+        window_order_clause = _build_window_order_clause(order_by)
+        over_clause = f"({window_order_clause})" if window_order_clause else "()"
+
+        search_params: list[Any] = []
+        if value is None:
+            if normalized_mode == "contains":
+                raise ValueError("Contains match mode does not support null search values.")
+            search_condition = f'"{column_identifier}" IS NULL'
+        elif normalized_mode == "contains":
+            search_condition = f'CAST("{column_identifier}" AS TEXT) ILIKE ?'
+            search_params.append(f"%{str(value)}%")
+        else:  # exact
+            search_condition = f'CAST("{column_identifier}" AS TEXT) = ?'
+            search_params.append(str(value))
+
+        query = f"""
+            WITH ranked AS (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER {over_clause} AS row_number
+                FROM csv_view
+                {where_clause}
+            )
+            SELECT
+                row_number - 1 AS row_index,
+                "{column_identifier}" AS match_value
+            FROM ranked
+            WHERE {search_condition}
+            ORDER BY row_number
+            LIMIT 1
+        """
+
+        bindings = [*params, *search_params]
+        record = conn.execute(query, bindings).fetchone()
+
+    if not record:
+        return None
+
+    row_index, match_value = record
+    return LocateResult(row_index=int(row_index), value=match_value)
 
 
 def unique_values(

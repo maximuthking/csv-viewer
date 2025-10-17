@@ -1,11 +1,13 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ColDef,
+  GridApi,
   GridReadyEvent,
   SortChangedEvent,
   FilterChangedEvent,
   FilterModel,
-  ITextFilterParams
+  ITextFilterParams,
+  RowClassParams
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
@@ -24,6 +26,9 @@ type DataPreviewGridProps = {
   error?: string;
   sort: SortSpec[];
   filters: FilterSpec[];
+  highlightRowIndex?: number;
+  highlightColumn?: string;
+  highlightToken?: number;
   onSortChange: (sort: SortSpec[]) => void;
   onFilterChange: (filters: FilterSpec[]) => void;
   onReload: () => void;
@@ -39,6 +44,9 @@ export function DataPreviewGrid({
   error,
   sort,
   filters,
+  highlightRowIndex,
+  highlightColumn,
+  highlightToken,
   onSortChange,
   onFilterChange,
   onReload
@@ -85,6 +93,45 @@ export function DataPreviewGrid({
     }),
     []
   );
+
+  const getRowClass = useCallback(
+    (params: RowClassParams) => {
+      if (highlightRowIndex == null) {
+        return undefined;
+      }
+      return params.node.rowIndex === highlightRowIndex ? styles.highlightRow : undefined;
+    },
+    [highlightRowIndex]
+  );
+
+  useEffect(() => {
+    const api: GridApi | undefined = gridRef.current?.api;
+    if (!api) {
+      return;
+    }
+    if (
+      highlightRowIndex == null ||
+      highlightRowIndex < 0 ||
+      highlightRowIndex >= rows.length ||
+      isLoading
+    ) {
+      return;
+    }
+
+    const raf = window.requestAnimationFrame(() => {
+      api.ensureIndexVisible(highlightRowIndex, "middle");
+      if (highlightColumn) {
+        api.ensureColumnVisible(highlightColumn);
+        api.setFocusedCell(highlightRowIndex, highlightColumn);
+      }
+      const rowNode = api.getDisplayedRowAtIndex(highlightRowIndex);
+      if (rowNode) {
+        api.flashCells({ rowNodes: [rowNode] });
+      }
+    });
+
+    return () => window.cancelAnimationFrame(raf);
+  }, [highlightRowIndex, highlightColumn, highlightToken, rows, isLoading]);
 
   const onGridReady = useCallback(
     (event: GridReadyEvent) => {
@@ -187,6 +234,7 @@ export function DataPreviewGrid({
             rowData={rows}
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
+            getRowClass={getRowClass}
             animateRows
             suppressAggFuncInHeader
             enableCellTextSelection

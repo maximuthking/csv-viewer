@@ -32,7 +32,9 @@ export function DashboardPage() {
     setPage,
     setPageSize,
     updateSort,
-    updateFilters
+    updateFilters,
+    locatePreviewValue,
+    clearPreviewSearch
   } = useDashboardStore((state) => ({
     files: state.files,
     selectedPath: state.selectedPath,
@@ -48,7 +50,9 @@ export function DashboardPage() {
     setPage: state.setPage,
     setPageSize: state.setPageSize,
     updateSort: state.updateSort,
-    updateFilters: state.updateFilters
+    updateFilters: state.updateFilters,
+    locatePreviewValue: state.locatePreviewValue,
+    clearPreviewSearch: state.clearPreviewSearch
   }));
 
   useEffect(() => {
@@ -129,6 +133,9 @@ export function DashboardPage() {
                     error={preview.error}
                     sort={preview.sort}
                     filters={preview.filters}
+                    highlightRowIndex={preview.highlight?.rowIndexInPage}
+                    highlightColumn={preview.highlight?.column}
+                    highlightToken={preview.highlight?.token}
                     onSortChange={(model) => void updateSort(model)}
                     onFilterChange={(model) => void updateFilters(model)}
                     onReload={() => void refreshPreview()}
@@ -138,6 +145,14 @@ export function DashboardPage() {
                     pageSize={preview.pageSize}
                     totalRows={preview.totalRows}
                     isLoading={preview.isLoading}
+                    columns={schema.map((column) => column.name)}
+                    searchColumn={preview.searchColumn}
+                    searchTerm={preview.searchTerm}
+                    searchInProgress={preview.searchInProgress}
+                    searchError={preview.searchError}
+                    lastMatch={preview.lastSearchMatch}
+                    onSearch={(payload) => void locatePreviewValue(payload)}
+                    onClearSearch={() => void clearPreviewSearch()}
                     onPageChange={(page) => void setPage(page)}
                     onPageSizeChange={(size) => void setPageSize(size)}
                   />

@@ -4,6 +4,8 @@ import type {
   ChartDataResponse,
   ColumnSchema,
   CsvFileInfo,
+  PreviewLocateRequest,
+  PreviewLocateResponse,
   PreviewRequest,
   PreviewResponse,
   SummaryResponse
@@ -36,5 +38,10 @@ export async function fetchSummary(path: string, columns?: string[]): Promise<Su
 
 export async function fetchChartData(payload: ChartDataRequest): Promise<ChartDataResponse> {
   const response = await httpClient.post<ChartDataResponse>("/chart-data", payload);
+  return response.data;
+}
+
+export async function locatePreviewValue(payload: PreviewLocateRequest): Promise<PreviewLocateResponse> {
+  const response = await httpClient.post<PreviewLocateResponse>("/preview/locate", payload);
   return response.data;
 }

@@ -1,7 +1,8 @@
 .controls {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   margin-top: 0.75rem;
 }
@@ -52,10 +53,120 @@
   color: #0f172a;
 }
 
+.search {
+  flex: 1 1 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.searchForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+}
+
+.columnSelect,
+.searchInput,
+.matchMode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.columnSelect select,
+.searchInput input,
+.matchMode select {
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.75rem;
+  min-width: 150px;
+  background: rgba(249, 250, 251, 0.95);
+  color: #0f172a;
+}
+
+.searchButtons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.searchButton,
+.clearButton {
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-weight: 600;
+}
+
+.searchButton {
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.searchButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.searchButton:not(:disabled):hover {
+  background: rgba(56, 189, 248, 0.3);
+}
+
+.clearButton {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.clearButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clearButton:not(:disabled):hover {
+  background: rgba(15, 23, 42, 0.14);
+}
+
+.searchError {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #f87171;
+}
+
+.searchHint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
 @media (max-width: 960px) {
   .controls {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .search {
+    width: 100%;
+  }
+
+  .columnSelect select,
+  .searchInput input,
+  .matchMode select {
+    width: 100%;
+  }
+
+  .searchButtons {
+    width: 100%;
+  }
+
+  .searchButtons button {
+    flex: 1;
   }
 }
 @media (prefers-color-scheme: dark) {
@@ -64,5 +175,22 @@
     border-color: rgba(148, 163, 184, 0.4);
     color: #f8fafc;
   }
-}
 
+  .columnSelect select,
+  .searchInput input,
+  .matchMode select {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #f8fafc;
+  }
+
+  .clearButton {
+    background: rgba(30, 41, 59, 0.4);
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #e2e8f0;
+  }
+
+  .clearButton:not(:disabled):hover {
+    background: rgba(30, 41, 59, 0.55);
+  }
+}

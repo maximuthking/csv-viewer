@@ -29,6 +29,22 @@ export type PreviewResponse = {
   columns: string[];
 };
 
+export type PreviewLocateRequest = {
+  path: string;
+  column: string;
+  value: unknown;
+  match_mode?: "contains" | "exact";
+  order_by?: Array<{ column: string; direction: SortDirection }>;
+  filters?: Array<{ column: string; operator: FilterOperator; value?: unknown }>;
+};
+
+export type PreviewLocateResponse = {
+  found: boolean;
+  row_index?: number | null;
+  column?: string | null;
+  value?: unknown;
+};
+
 export type SummaryResponse = {
   summaries: Array<{
     column: string;
