@@ -66,7 +66,7 @@ export type ChartDataRequest = {
   time_column: string | null;
   value_columns: string[];
   time_bucket: string;
-  interpolation: "none" | "forward_fill";
+  interpolation: "none" | "ffill" | "bfill" | "linear";
 };
 
 export type ChartDataResponse = {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -166,7 +166,10 @@ class ChartDataRequest(BaseModel):
     time_column: Optional[str] = None  # scatter 에서는 사용되지 않을 수 있음
     value_columns: List[str]
     time_bucket: str = Field("1 day", description="e.g., '1 minute', '1 hour', '1 day'")
-    interpolation: str = Field("none", description="e.g., 'none', 'forward_fill'")
+    interpolation: Literal["none", "ffill", "bfill", "linear"] = Field(
+        "none",
+        description="e.g., 'none', 'ffill', 'bfill', 'linear'",
+    )
 
     @field_validator("value_columns")
     @classmethod

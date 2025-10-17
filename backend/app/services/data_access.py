@@ -603,8 +603,72 @@ def get_chart_data(
             final_query = f"{base_query} ORDER BY 1"
             return conn.execute(final_query).fetch_df()
 
-        # Interpolation logic using synthetic buckets and window forward-fill
-        if interpolation == "forward_fill":
+        gap_conditions = [
+            f"(aggregated.{_quote_identifier(col)} IS NULL)"
+            for col in value_columns
+        ]
+        aggregated_null_clause = " AND ".join(gap_conditions)
+        if aggregated_null_clause:
+            is_gap_expression = (
+                f"CASE WHEN aggregated.bucket_start IS NULL OR ({aggregated_null_clause}) "
+                f"THEN TRUE ELSE FALSE END AS is_gap"
+            )
+        else:
+            is_gap_expression = (
+                "CASE WHEN aggregated.bucket_start IS NULL THEN TRUE ELSE FALSE END AS is_gap"
+            )
+
+        joined_select_parts = [
+            "buckets.bucket_start",
+            *[
+                f"aggregated.{_quote_identifier(col)} AS {_quote_identifier(col)}"
+                for col in value_columns
+            ],
+            is_gap_expression,
+        ]
+        joined_select_clause = ",\n                        ".join(joined_select_parts)
+
+        joined_cte = f"""
+            WITH bounds AS (
+                SELECT
+                    MIN(CAST({time_col_quoted} AS TIMESTAMP)) AS min_time,
+                    MAX(CAST({time_col_quoted} AS TIMESTAMP)) AS max_time
+                FROM chart_view
+            ),
+            buckets AS (
+                SELECT
+                    bucket_start
+                FROM (
+                    SELECT
+                        UNNEST(
+                            GENERATE_SERIES(
+                                time_bucket(INTERVAL '{time_bucket}', min_time),
+                                time_bucket(INTERVAL '{time_bucket}', max_time),
+                                INTERVAL '{time_bucket}'
+                            )
+                        ) AS bucket_start
+                    FROM bounds
+                    WHERE min_time IS NOT NULL AND max_time IS NOT NULL
+                )
+                WHERE bucket_start IS NOT NULL
+            ),
+            aggregated AS (
+                SELECT
+                    time_bucket(INTERVAL '{time_bucket}', CAST({time_col_quoted} AS TIMESTAMP)) AS bucket_start,
+                    {agg_clause}
+                FROM chart_view
+                GROUP BY 1
+            ),
+            joined AS (
+                SELECT
+                    {joined_select_clause}
+                FROM buckets
+                LEFT JOIN aggregated ON aggregated.bucket_start = buckets.bucket_start
+            )
+        """
+
+        # Interpolation logic using synthetic buckets
+        if interpolation == "ffill":
             locf_expressions = [
                 (
                     "MAX_BY("
@@ -620,68 +684,8 @@ def get_chart_data(
             ]
             locf_clause = ",\n                    ".join(locf_expressions)
 
-            gap_conditions = [
-                f"(aggregated.{_quote_identifier(col)} IS NULL)"
-                for col in value_columns
-            ]
-            aggregated_null_clause = " AND ".join(gap_conditions)
-            if aggregated_null_clause:
-                is_gap_expression = (
-                    f"CASE WHEN aggregated.bucket_start IS NULL OR ({aggregated_null_clause}) "
-                    f"THEN TRUE ELSE FALSE END AS is_gap"
-                )
-            else:
-                is_gap_expression = (
-                    "CASE WHEN aggregated.bucket_start IS NULL THEN TRUE ELSE FALSE END AS is_gap"
-                )
-
-            joined_select_parts = [
-                "buckets.bucket_start",
-                *[
-                    f"aggregated.{_quote_identifier(col)} AS {_quote_identifier(col)}"
-                    for col in value_columns
-                ],
-                is_gap_expression,
-            ]
-            joined_select_clause = ",\n                        ".join(joined_select_parts)
-
             final_query = f"""
-                WITH bounds AS (
-                    SELECT
-                        MIN(CAST({time_col_quoted} AS TIMESTAMP)) AS min_time,
-                        MAX(CAST({time_col_quoted} AS TIMESTAMP)) AS max_time
-                    FROM chart_view
-                ),
-                buckets AS (
-                    SELECT
-                        bucket_start
-                    FROM (
-                        SELECT
-                            UNNEST(
-                                GENERATE_SERIES(
-                                    time_bucket(INTERVAL '{time_bucket}', min_time),
-                                    time_bucket(INTERVAL '{time_bucket}', max_time),
-                                    INTERVAL '{time_bucket}'
-                                )
-                            ) AS bucket_start
-                        FROM bounds
-                        WHERE min_time IS NOT NULL AND max_time IS NOT NULL
-                    )
-                    WHERE bucket_start IS NOT NULL
-                ),
-                aggregated AS (
-                    SELECT
-                        time_bucket(INTERVAL '{time_bucket}', CAST({time_col_quoted} AS TIMESTAMP)) AS bucket_start,
-                        {agg_clause}
-                    FROM chart_view
-                    GROUP BY 1
-                ),
-                joined AS (
-                    SELECT
-                        {joined_select_clause}
-                    FROM buckets
-                    LEFT JOIN aggregated ON aggregated.bucket_start = buckets.bucket_start
-                )
+                {joined_cte}
                 SELECT
                     joined.bucket_start AS {time_col_quoted},
                     {locf_clause},
@@ -690,5 +694,35 @@ def get_chart_data(
                 ORDER BY 1
             """
             return conn.execute(final_query).fetch_df()
+
+        if interpolation in {"bfill", "linear"}:
+            value_select_clause = ",\n                    ".join(
+                [
+                    f"joined.{_quote_identifier(col)} AS {_quote_identifier(col)}"
+                    for col in value_columns
+                ]
+            )
+
+            base_join_query = f"""
+                {joined_cte}
+                SELECT
+                    joined.bucket_start AS {time_col_quoted},
+                    {value_select_clause},
+                    joined.is_gap AS is_interpolated
+                FROM joined
+                ORDER BY 1
+            """
+            df = conn.execute(base_join_query).fetch_df()
+
+            if df.empty:
+                return df
+
+            if interpolation == "bfill":
+                df[value_columns] = df[value_columns].fillna(method="bfill")
+            else:
+                df[value_columns] = df[value_columns].interpolate(method="linear")
+
+            df["is_interpolated"] = df["is_interpolated"].astype(bool)
+            return df
 
         raise ValueError(f"Unsupported interpolation method: {interpolation}")

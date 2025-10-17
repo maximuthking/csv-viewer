@@ -3,10 +3,11 @@ import type { ChangeEvent } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption, SeriesOption } from 'echarts';
 import { useDashboardStore, ChartType } from '../../state/useDashboardStore';
+import type { ChartOptions } from '../../state/useDashboardStore';
 import styles from './ChartPanel.module.css';
 
 const TIME_BUCKET_OPTIONS = ["1 minute", "5 minutes", "15 minutes", "1 hour", "1 day", "1 week"];
-const INTERPOLATION_OPTIONS = ["none", "forward_fill"];
+const INTERPOLATION_OPTIONS: ChartOptions["interpolation"][] = ["none", "ffill", "bfill", "linear"];
 const CHART_TYPE_OPTIONS: ChartType[] = ["line", "bar", "scatter"];
 
 export function ChartPanel() {
@@ -415,7 +416,7 @@ export function ChartPanel() {
               <select
                 value={interpolation}
                 onChange={(e) =>
-                  setChartOptions({ interpolation: e.target.value as "none" | "forward_fill" })
+                  setChartOptions({ interpolation: e.target.value as ChartOptions["interpolation"] })
                 }
                 disabled={isLoading}
               >
