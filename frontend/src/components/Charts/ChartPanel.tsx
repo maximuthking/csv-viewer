@@ -461,7 +461,7 @@ export function ChartPanel() {
         ) : (
           <ReactECharts
             option={options}
-            style={{ height: '890px', width: '100%' }}
+            style={{ height: '900px', width: '100%' }}
             notMerge
             lazyUpdate
           />

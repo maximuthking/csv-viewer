@@ -66,25 +66,27 @@ export function DashboardPage() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.topBar}>
-        <div>
-          <h1 className={styles.title}>CSV Viewer</h1>
-          <p className={styles.subtitle}>{subtitle}</p>
-        </div>
-        <div className={styles.status}>
-          {preview.isLoading ? <span className={styles.badge}>Loading</span> : null}
-          {preview.error ? <span className={styles.badgeError}>Error</span> : null}
-        </div>
-      </header>
       <div className={styles.layout}>
-        <FileBrowser
-          files={files}
-          selectedPath={selectedPath}
-          isLoading={filesLoading}
-          error={filesError}
-          onSelect={(path) => void selectFile(path)}
-          onReload={() => void init()}
-        />
+        <aside className={styles.sidebar}>
+          <header className={styles.topBar}>
+            <div>
+              <h1 className={styles.title}>CSV Viewer</h1>
+              <p className={styles.subtitle}>{subtitle}</p>
+            </div>
+            <div className={styles.status}>
+              {preview.isLoading ? <span className={styles.badge}>Loading</span> : null}
+              {preview.error ? <span className={styles.badgeError}>Error</span> : null}
+            </div>
+          </header>
+          <FileBrowser
+            files={files}
+            selectedPath={selectedPath}
+            isLoading={filesLoading}
+            error={filesError}
+            onSelect={(path) => void selectFile(path)}
+            onReload={() => void init()}
+          />
+        </aside>
         <div className={styles.mainContent}>
           <div className={styles.tabContainer}>
             <div className={styles.tabList} role="tablist" aria-label="Data exploration views">

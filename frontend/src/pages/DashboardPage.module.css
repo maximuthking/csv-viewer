@@ -14,6 +14,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  padding: 1.25rem;
+  background: var(--surface-panel);
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  width: 100%;
+  max-width: 320px;
+  box-sizing: border-box;
 }
 
 .title {
@@ -36,6 +43,7 @@
 .status {
   display: flex;
   gap: 0.5rem;
+  align-self: flex-end;
 }
 
 .badge,
@@ -56,9 +64,19 @@
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(300px, 340px) 1fr;
   gap: 1.5rem;
   min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.25rem;
+  align-items: center;
 }
 
 .mainContent {
@@ -149,6 +167,30 @@
 
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    overflow: visible;
+    padding-right: 0;
+    align-items: stretch;
+  }
+
+  .topBar {
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: none;
+  }
+
+  .status {
+    align-self: flex-start;
+  }
+
+  .mainContent {
+    padding-right: 0;
+  }
+
+  .tabList {
+    flex-wrap: wrap;
   }
 }
 
