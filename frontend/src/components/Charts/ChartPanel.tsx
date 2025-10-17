@@ -317,7 +317,7 @@ export function ChartPanel() {
     const dataZoom = isTimeSeries
       ? [
           { type: "inside", xAxisIndex: 0 },
-          { type: "slider", xAxisIndex: 0, height: 36, bottom: 16 }
+          { type: "slider", xAxisIndex: 0, height: 60, bottom: 16 }
         ]
       : [
           { type: "inside", xAxisIndex: 0 },
