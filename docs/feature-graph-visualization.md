@@ -53,7 +53,7 @@
 1.  **API 엔드포인트 신설 (`api/routes.py`)**
     - `POST /api/v1/chart-data`: 차트 데이터 요청을 처리하는 엔드포인트를 추가한다.
 2.  **API 스키마 정의 (`api/schemas.py`)**
-    - `ChartDataRequest`: 요청 시 필요한 정보에 `interpolation_method: Optional[str] = 'none'` (보간 방법)을 추가한다. (값: 'linear', 'ffill', 'bfill', 'spline', 'polynomial', 'none')
+    - `ChartDataRequest`: 요청 시 필요한 정보에 `interpolation_method: Optional[str] = 'none'` (보간 방법)을 추가한다. (값: 'linear', 'ffill', 'bfill', 'spline', 'polynomial', 'pchip', 'akima', 'none')
     - `ChartDataResponse`: 집계된 결과(라벨, 값 배열 등)의 구조를 정의한다.
 3.  **데이터 처리 서비스 로직 추가 (`services/data_access.py`)**
     - `get_chart_data()`: 요청된 조건에 따라 DuckDB를 사용하여 데이터를 처리하는 함수를 구현한다.

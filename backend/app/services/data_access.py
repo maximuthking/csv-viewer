@@ -695,7 +695,7 @@ def get_chart_data(
             """
             return conn.execute(final_query).fetch_df()
 
-        if interpolation in {"bfill", "linear", "spline", "polynomial"}:
+        if interpolation in {"bfill", "linear", "spline", "polynomial", "pchip", "akima"}:
             value_select_clause = ",\n                    ".join(
                 [
                     f"joined.{_quote_identifier(col)} AS {_quote_identifier(col)}"
@@ -721,7 +721,7 @@ def get_chart_data(
                 df[value_columns] = df[value_columns].bfill()
             elif interpolation == "linear":
                 df[value_columns] = df[value_columns].interpolate(method="linear")
-            else:
+            elif interpolation in {"spline", "polynomial"}:
                 order = 3
                 available_points = min(df[col].count() for col in value_columns)
                 if available_points < order + 1:
@@ -733,6 +733,20 @@ def get_chart_data(
                     df[value_columns] = df[value_columns].interpolate(
                         method=interpolation, order=order
                     )
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Failed to apply {interpolation} interpolation: {exc}"
+                    ) from exc
+            else:  # pchip, akima
+                available_points = min(df[col].count() for col in value_columns)
+                required_points = 2 if interpolation == "pchip" else 5
+                if available_points < required_points:
+                    raise ValueError(
+                        f"{interpolation} interpolation requires at least {required_points} "
+                        f"observations per value column (found {available_points})."
+                    )
+                try:
+                    df[value_columns] = df[value_columns].interpolate(method=interpolation)
                 except ValueError as exc:
                     raise ValueError(
                         f"Failed to apply {interpolation} interpolation: {exc}"

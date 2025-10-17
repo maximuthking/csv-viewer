@@ -66,7 +66,15 @@ export type ChartDataRequest = {
   time_column: string | null;
   value_columns: string[];
   time_bucket: string;
-  interpolation: "none" | "ffill" | "bfill" | "linear" | "spline" | "polynomial";
+  interpolation:
+    | "none"
+    | "ffill"
+    | "bfill"
+    | "linear"
+    | "spline"
+    | "polynomial"
+    | "pchip"
+    | "akima";
 };
 
 export type ChartDataResponse = {

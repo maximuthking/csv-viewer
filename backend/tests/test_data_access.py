@@ -39,8 +39,9 @@ def create_chart_fixture_csv(tmp_path: Path) -> Path:
                 "2024-01-01 00:10:00",
                 "2024-01-01 00:20:00",
                 "2024-01-01 00:30:00",
+                "2024-01-01 00:40:00",
             ],
-            "value": [10.0, 40.0, 70.0, 100.0],
+            "value": [10.0, 40.0, 70.0, 100.0, 130.0],
         }
     )
     df.to_csv(csv_path, index=False)
@@ -133,45 +134,76 @@ def test_chart_data_interpolation_methods(tmp_path: Path, monkeypatch) -> None:
     )
 
     result_none = data_access.get_chart_data(csv_path.name, interpolation="none", **common_kwargs)
-    assert len(result_none) == 4
-    assert result_none["value"].tolist() == [10.0, 40.0, 70.0, 100.0]
+    assert len(result_none) == 5
+    assert result_none["value"].tolist() == [10.0, 40.0, 70.0, 100.0, 130.0]
 
     result_bfill = data_access.get_chart_data(csv_path.name, interpolation="bfill", **common_kwargs)
     assert not result_bfill["value"].isna().any()
-    assert len(result_bfill) == 7
+    assert len(result_bfill) == 9
     assert bucket_value(result_bfill, 5) == pytest.approx(40.0)
     assert bucket_value(result_bfill, 15) == pytest.approx(70.0)
     assert bucket_value(result_bfill, 25) == pytest.approx(100.0)
+    assert bucket_value(result_bfill, 35) == pytest.approx(130.0)
 
     result_linear = data_access.get_chart_data(csv_path.name, interpolation="linear", **common_kwargs)
     assert not result_linear["value"].isna().any()
-    assert len(result_linear) == 7
+    assert len(result_linear) == 9
     assert bucket_value(result_linear, 5) == pytest.approx(25.0)
     assert bucket_value(result_linear, 15) == pytest.approx(55.0)
     assert bucket_value(result_linear, 25) == pytest.approx(85.0)
+    assert bucket_value(result_linear, 35) == pytest.approx(115.0)
 
     result_spline = data_access.get_chart_data(csv_path.name, interpolation="spline", **common_kwargs)
     assert not result_spline["value"].isna().any()
-    assert len(result_spline) == 7
+    assert len(result_spline) == 9
     assert bucket_value(result_spline, 5) == pytest.approx(25.0, abs=1e-6)
     assert bucket_value(result_spline, 15) == pytest.approx(55.0, abs=1e-6)
     assert bucket_value(result_spline, 25) == pytest.approx(85.0, abs=1e-6)
+    assert bucket_value(result_spline, 35) == pytest.approx(115.0, abs=1e-6)
 
     result_polynomial = data_access.get_chart_data(
         csv_path.name, interpolation="polynomial", **common_kwargs
     )
     assert not result_polynomial["value"].isna().any()
-    assert len(result_polynomial) == 7
+    assert len(result_polynomial) == 9
     assert bucket_value(result_polynomial, 5) == pytest.approx(25.0, abs=1e-6)
     assert bucket_value(result_polynomial, 15) == pytest.approx(55.0, abs=1e-6)
     assert bucket_value(result_polynomial, 25) == pytest.approx(85.0, abs=1e-6)
+    assert bucket_value(result_polynomial, 35) == pytest.approx(115.0, abs=1e-6)
+
+    result_pchip = data_access.get_chart_data(csv_path.name, interpolation="pchip", **common_kwargs)
+    assert not result_pchip["value"].isna().any()
+    assert len(result_pchip) == 9
+    assert bucket_value(result_pchip, 5) == pytest.approx(25.0, abs=1e-6)
+    assert bucket_value(result_pchip, 15) == pytest.approx(55.0, abs=1e-6)
+    assert bucket_value(result_pchip, 25) == pytest.approx(85.0, abs=1e-6)
+    assert bucket_value(result_pchip, 35) == pytest.approx(115.0, abs=1e-6)
+
+    result_akima = data_access.get_chart_data(csv_path.name, interpolation="akima", **common_kwargs)
+    assert not result_akima["value"].isna().any()
+    assert len(result_akima) == 9
+    assert bucket_value(result_akima, 5) == pytest.approx(25.0, abs=1e-6)
+    assert bucket_value(result_akima, 15) == pytest.approx(55.0, abs=1e-6)
+    assert bucket_value(result_akima, 25) == pytest.approx(85.0, abs=1e-6)
+    assert bucket_value(result_akima, 35) == pytest.approx(115.0, abs=1e-6)
 
     # is_interpolated 표시는 보간된 행에서 True로 유지된다.
-    for df in (result_bfill, result_linear, result_spline, result_polynomial):
+    interpolated_targets = pd.to_datetime(
+        [
+            "2024-01-01 00:05:00",
+            "2024-01-01 00:15:00",
+            "2024-01-01 00:25:00",
+            "2024-01-01 00:35:00",
+        ]
+    )
+    for df in (
+        result_bfill,
+        result_linear,
+        result_spline,
+        result_polynomial,
+        result_pchip,
+        result_akima,
+    ):
         assert df["is_interpolated"].dtype == bool
-        interpolated_flags = df.loc[df["time"].isin(
-            pd.to_datetime(
-                ["2024-01-01 00:05:00", "2024-01-01 00:15:00", "2024-01-01 00:25:00"]
-            )
-        ), "is_interpolated"].tolist()
+        interpolated_flags = df.loc[df["time"].isin(interpolated_targets), "is_interpolated"].tolist()
         assert all(interpolated_flags)

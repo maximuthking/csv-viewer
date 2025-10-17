@@ -7,7 +7,16 @@ import type { ChartOptions } from '../../state/useDashboardStore';
 import styles from './ChartPanel.module.css';
 
 const TIME_BUCKET_OPTIONS = ["1 minute", "5 minutes", "15 minutes", "1 hour", "1 day", "1 week"];
-const INTERPOLATION_OPTIONS: ChartOptions["interpolation"][] = ["none", "ffill", "bfill", "linear", "spline", "polynomial"];
+const INTERPOLATION_OPTIONS: ChartOptions["interpolation"][] = [
+  "none",
+  "ffill",
+  "bfill",
+  "linear",
+  "spline",
+  "polynomial",
+  "pchip",
+  "akima"
+];
 const CHART_TYPE_OPTIONS: ChartType[] = ["line", "bar", "scatter"];
 
 export function ChartPanel() {
