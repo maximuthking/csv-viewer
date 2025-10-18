@@ -8,16 +8,23 @@ from functools import lru_cache
 from pathlib import Path
 
 
+# 프로젝트 루트 디렉터리를 __file__ 기준으로 계산
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
+
+
 @dataclass(slots=True)
 class AppSettings:
     """Configuration values sourced from environment variables."""
 
     csv_data_dir: Path = field(
-        default_factory=lambda: Path(os.getenv("CSV_DATA_DIR", "./data")).resolve()
+        default_factory=lambda: Path(
+            os.getenv("CSV_DATA_DIR", str(DEFAULT_DATA_DIR))
+        ).resolve()
     )
     duckdb_database_path: Path = field(
         default_factory=lambda: Path(
-            os.getenv("DUCKDB_DATABASE_PATH", "./data/cache/catalog.duckdb")
+            os.getenv("DUCKDB_DATABASE_PATH", str(DEFAULT_DATA_DIR / "cache/catalog.duckdb"))
         ).resolve()
     )
     duckdb_sample_size: int = field(
