@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
@@ -88,6 +89,8 @@ def list_csv_files(patterns: Sequence[str] | None = None) -> List[Path]:
             try:
                 _ensure_parquet_cache(path, parquet_path)
             except Exception:  # pragma: no cover - safeguard to avoid aborting listing
+                print(f"Failed to convert {path.name} to Parquet:")
+                traceback.print_exc()
                 continue
             else:
                 matches.add(parquet_path)
