@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Any, List, Sequence
 
 import duckdb
-import pandas as pd
+import numpy as np
+import polars as pl
+from scipy.interpolate import Akima1DInterpolator, PchipInterpolator, UnivariateSpline
 
 from ..core.settings import get_settings
 from ..db.duckdb_session import duckdb_connection
@@ -160,6 +162,15 @@ def _ensure_parquet_cache(csv_path: Path, parquet_path: Path) -> None:
         )
 
 
+def _fetch_polars_frame(conn: duckdb.DuckDBPyConnection, query: str, params: Sequence[Any] | None = None) -> pl.DataFrame:
+    """Execute a DuckDB query and return the result as a Polars DataFrame using Arrow."""
+
+    arrow_table = conn.execute(query, params or []).fetch_arrow_table()
+    if arrow_table is None:
+        return pl.DataFrame()
+    return pl.from_arrow(arrow_table)
+
+
 def describe_csv(csv_path: Path | str, *, sample_size: int | None = None) -> List[ColumnSchema]:
     """Return column names, types, and nullability for the given CSV file."""
 
@@ -254,7 +265,7 @@ def preview_csv(
     sample_size: int | None = None,
     order_by: Sequence[SortSpec] | None = None,
     filters: Sequence[FilterSpec] | None = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Fetch a paginated preview of the CSV data."""
 
     with duckdb_connection() as conn:
@@ -271,7 +282,7 @@ def preview_csv(
             LIMIT ?
             OFFSET ?
         """
-        df = conn.execute(query, params).fetch_df()
+        df = _fetch_polars_frame(conn, query, params)
 
     return df
 
@@ -394,19 +405,20 @@ def sample_rows(
     sample_size: int = 1000,
     seed: int | None = None,
     read_sample_size: int | None = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Return a random sample of rows from the CSV."""
 
     with duckdb_connection() as conn:
         _register_csv_view(conn, csv_path, sample_size=read_sample_size)
         seed_clause = f" (SEED {int(seed)})" if seed is not None else ""
-        df = conn.execute(
+        df = _fetch_polars_frame(
+            conn,
             f"""
             SELECT *
             FROM csv_view
             USING SAMPLE {int(sample_size)} ROWS{seed_clause}
             """,
-        ).fetch_df()
+        )
 
     return df
 
@@ -416,7 +428,7 @@ def execute_sql(
     sql: str,
     *,
     sample_size: int | None = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Execute a SELECT SQL statement against the CSV view."""
 
     stripped = sql.strip()
@@ -425,7 +437,7 @@ def execute_sql(
 
     with duckdb_connection() as conn:
         _register_csv_view(conn, csv_path, sample_size=sample_size)
-        df = conn.execute(stripped).fetch_df()
+        df = _fetch_polars_frame(conn, stripped)
 
     return df
 
@@ -562,7 +574,7 @@ def get_chart_data(
     time_bucket: str | None = None,
     interpolation: str = "none",
     sample_size: int | None = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Get aggregated or sampled data for chart visualization."""
 
     if not value_columns:
@@ -580,7 +592,7 @@ def get_chart_data(
                 FROM chart_view
                 USING SAMPLE 5000 ROWS
             """
-            return conn.execute(query).fetch_df()
+            return _fetch_polars_frame(conn, query)
 
         if not time_column or not time_bucket:
             raise ValueError("Time column and bucket are required for line/bar charts.")
@@ -604,7 +616,7 @@ def get_chart_data(
 
         if interpolation == "none":
             final_query = f"{base_query} ORDER BY 1"
-            return conn.execute(final_query).fetch_df()
+            return _fetch_polars_frame(conn, final_query)
 
         gap_conditions = [
             f"(aggregated.{_quote_identifier(col)} IS NULL)"
@@ -696,7 +708,8 @@ def get_chart_data(
                 FROM joined
                 ORDER BY 1
             """
-            return conn.execute(final_query).fetch_df()
+            df = _fetch_polars_frame(conn, final_query)
+            return df.with_columns(pl.col("is_interpolated").cast(pl.Boolean))
 
         if interpolation in {"bfill", "linear", "spline", "polynomial", "pchip", "akima"}:
             value_select_clause = ",\n                    ".join(
@@ -715,47 +728,108 @@ def get_chart_data(
                 FROM joined
                 ORDER BY 1
             """
-            df = conn.execute(base_join_query).fetch_df()
+            df = _fetch_polars_frame(conn, base_join_query)
 
-            if df.empty:
+            if df.height == 0:
                 return df
 
             if interpolation == "bfill":
-                df[value_columns] = df[value_columns].bfill()
+                df = _fill_with_strategy(df, value_columns, "backward")
             elif interpolation == "linear":
-                df[value_columns] = df[value_columns].interpolate(method="linear")
-            elif interpolation in {"spline", "polynomial"}:
-                order = 3
-                available_points = min(df[col].count() for col in value_columns)
-                if available_points < order + 1:
-                    raise ValueError(
-                        f"{interpolation} interpolation requires at least {order + 1} "
-                        f"observations per value column (found {available_points})."
-                    )
-                try:
-                    df[value_columns] = df[value_columns].interpolate(
-                        method=interpolation, order=order
-                    )
-                except ValueError as exc:
-                    raise ValueError(
-                        f"Failed to apply {interpolation} interpolation: {exc}"
-                    ) from exc
-            else:  # pchip, akima
-                available_points = min(df[col].count() for col in value_columns)
-                required_points = 2 if interpolation == "pchip" else 5
-                if available_points < required_points:
-                    raise ValueError(
-                        f"{interpolation} interpolation requires at least {required_points} "
-                        f"observations per value column (found {available_points})."
-                    )
-                try:
-                    df[value_columns] = df[value_columns].interpolate(method=interpolation)
-                except ValueError as exc:
-                    raise ValueError(
-                        f"Failed to apply {interpolation} interpolation: {exc}"
-                    ) from exc
+                df = _apply_linear_interpolation(df, value_columns)
+            else:
+                df = _apply_advanced_interpolation(df, time_column, value_columns, interpolation)
 
-            df["is_interpolated"] = df["is_interpolated"].astype(bool)
-            return df
+            return df.with_columns(pl.col("is_interpolated").cast(pl.Boolean))
 
         raise ValueError(f"Unsupported interpolation method: {interpolation}")
+
+
+def _fill_with_strategy(df: pl.DataFrame, columns: Sequence[str], strategy: str) -> pl.DataFrame:
+    if not columns:
+        return df
+    return df.with_columns([pl.col(column).fill_null(strategy=strategy).alias(column) for column in columns])
+
+
+def _apply_linear_interpolation(df: pl.DataFrame, columns: Sequence[str]) -> pl.DataFrame:
+    if not columns:
+        return df
+    return df.with_columns([pl.col(column).interpolate().alias(column) for column in columns])
+
+
+def _apply_advanced_interpolation(
+    df: pl.DataFrame,
+    time_column: str,
+    value_columns: Sequence[str],
+    method: str
+) -> pl.DataFrame:
+    if not value_columns:
+        return df
+
+    time_values = df[time_column].to_numpy()
+    if np.issubdtype(time_values.dtype, np.datetime64):
+        x_all = time_values.astype("datetime64[ns]").astype(np.int64)
+    else:
+        x_all = time_values.astype(np.float64)
+
+    order = 3
+    result_columns: list[pl.Series] = []
+
+    for column in value_columns:
+        series = df[column].cast(pl.Float64)
+        values = series.to_numpy()
+        mask = ~np.isnan(values)
+        available_points = int(mask.sum())
+
+        if method in {"spline", "polynomial"}:
+            required_points = order + 1
+        elif method == "pchip":
+            required_points = 2
+        else:  # akima
+            required_points = 5
+
+        if available_points < required_points:
+            raise ValueError(
+                f"{method} interpolation requires at least {required_points} "
+                f"observations per value column (found {available_points})."
+            )
+
+        if mask.all():
+            result_columns.append(series)
+            continue
+
+        x_known = x_all[mask]
+        y_known = values[mask]
+        interpolated = _evaluate_interpolator(method, x_known, y_known, x_all, order)
+
+        filled = values.copy()
+        missing_mask = ~mask
+        filled[missing_mask] = interpolated[missing_mask]
+        result_columns.append(pl.Series(name=column, values=filled))
+
+    return df.with_columns(result_columns)
+
+
+def _evaluate_interpolator(
+    method: str,
+    x_known: np.ndarray,
+    y_known: np.ndarray,
+    x_all: np.ndarray,
+    order: int
+) -> np.ndarray:
+    if method == "spline":
+        interpolator = UnivariateSpline(x_known, y_known, k=order, s=0)
+        return interpolator(x_all)
+    if method == "polynomial":
+        try:
+            coeffs = np.polyfit(x_known, y_known, deg=order)
+        except ValueError as exc:
+            raise ValueError(f"Failed to apply polynomial interpolation: {exc}") from exc
+        return np.polyval(coeffs, x_all)
+    if method == "pchip":
+        interpolator = PchipInterpolator(x_known, y_known)
+        return interpolator(x_all)
+    if method == "akima":
+        interpolator = Akima1DInterpolator(x_known, y_known)
+        return interpolator(x_all)
+    raise ValueError(f"Unsupported interpolation method: {method}")

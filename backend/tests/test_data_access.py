@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from backend.app.core import settings
@@ -19,20 +20,19 @@ def setup_module() -> None:
 
 def create_fixture_csv(tmp_path: Path) -> Path:
     csv_path = tmp_path / "fixture.csv"
-    df = pd.DataFrame(
+    pl.DataFrame(
         {
             "time": ["2024-01-01 00:00:00", "2024-01-01 00:05:00"],
             "pv_id": ["PV1", "PV2"],
             "value": [1.5, 3.2],
         }
-    )
-    df.to_csv(csv_path, index=False)
+    ).write_csv(csv_path)
     return csv_path
 
 
 def create_chart_fixture_csv(tmp_path: Path) -> Path:
     csv_path = tmp_path / "chart_fixture.csv"
-    df = pd.DataFrame(
+    pl.DataFrame(
         {
             "time": [
                 "2024-01-01 00:00:00",
@@ -43,8 +43,7 @@ def create_chart_fixture_csv(tmp_path: Path) -> Path:
             ],
             "value": [10.0, 40.0, 70.0, 100.0, 130.0],
         }
-    )
-    df.to_csv(csv_path, index=False)
+    ).write_csv(csv_path)
     return csv_path
 
 
@@ -69,13 +68,13 @@ def test_data_access_end_to_end(tmp_path: Path, monkeypatch) -> None:
     assert total == 2
 
     preview = data_access.preview_csv(csv_path.name, limit=1)
-    assert len(preview.index) == 1
+    assert preview.height == 1
 
     unique = data_access.unique_values(csv_path.name, "pv_id")
     assert sorted(unique) == ["PV1", "PV2"]
 
     sample = data_access.sample_rows(csv_path.name, sample_size=1)
-    assert len(sample.index) == 1
+    assert sample.height == 1
 
 
 def test_locate_row_position(tmp_path: Path, monkeypatch) -> None:
@@ -120,11 +119,13 @@ def test_chart_data_interpolation_methods(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("DUCKDB_SAMPLE_SIZE", "1000")
     settings.reset_settings_cache()
 
-    def bucket_value(df: pd.DataFrame, minutes: int) -> float:
-        timestamp = pd.Timestamp("2024-01-01 00:00:00") + pd.Timedelta(minutes=minutes)
-        row = df[df["time"] == timestamp]
-        assert not row.empty
-        return float(row.iloc[0]["value"])
+    base_time = datetime(2024, 1, 1, 0, 0, 0)
+
+    def bucket_value(df: pl.DataFrame, minutes: int) -> float:
+        timestamp = base_time + timedelta(minutes=minutes)
+        row = df.filter(pl.col("time") == timestamp)
+        assert row.height > 0
+        return float(row["value"][0])
 
     common_kwargs = dict(
         chart_type="line",
@@ -134,28 +135,28 @@ def test_chart_data_interpolation_methods(tmp_path: Path, monkeypatch) -> None:
     )
 
     result_none = data_access.get_chart_data(csv_path.name, interpolation="none", **common_kwargs)
-    assert len(result_none) == 5
-    assert result_none["value"].tolist() == [10.0, 40.0, 70.0, 100.0, 130.0]
+    assert result_none.height == 5
+    assert result_none["value"].to_list() == [10.0, 40.0, 70.0, 100.0, 130.0]
 
     result_bfill = data_access.get_chart_data(csv_path.name, interpolation="bfill", **common_kwargs)
-    assert not result_bfill["value"].isna().any()
-    assert len(result_bfill) == 9
+    assert not result_bfill["value"].is_null().any()
+    assert result_bfill.height == 9
     assert bucket_value(result_bfill, 5) == pytest.approx(40.0)
     assert bucket_value(result_bfill, 15) == pytest.approx(70.0)
     assert bucket_value(result_bfill, 25) == pytest.approx(100.0)
     assert bucket_value(result_bfill, 35) == pytest.approx(130.0)
 
     result_linear = data_access.get_chart_data(csv_path.name, interpolation="linear", **common_kwargs)
-    assert not result_linear["value"].isna().any()
-    assert len(result_linear) == 9
+    assert not result_linear["value"].is_null().any()
+    assert result_linear.height == 9
     assert bucket_value(result_linear, 5) == pytest.approx(25.0)
     assert bucket_value(result_linear, 15) == pytest.approx(55.0)
     assert bucket_value(result_linear, 25) == pytest.approx(85.0)
     assert bucket_value(result_linear, 35) == pytest.approx(115.0)
 
     result_spline = data_access.get_chart_data(csv_path.name, interpolation="spline", **common_kwargs)
-    assert not result_spline["value"].isna().any()
-    assert len(result_spline) == 9
+    assert not result_spline["value"].is_null().any()
+    assert result_spline.height == 9
     assert bucket_value(result_spline, 5) == pytest.approx(25.0, abs=1e-6)
     assert bucket_value(result_spline, 15) == pytest.approx(55.0, abs=1e-6)
     assert bucket_value(result_spline, 25) == pytest.approx(85.0, abs=1e-6)
@@ -164,38 +165,36 @@ def test_chart_data_interpolation_methods(tmp_path: Path, monkeypatch) -> None:
     result_polynomial = data_access.get_chart_data(
         csv_path.name, interpolation="polynomial", **common_kwargs
     )
-    assert not result_polynomial["value"].isna().any()
-    assert len(result_polynomial) == 9
+    assert not result_polynomial["value"].is_null().any()
+    assert result_polynomial.height == 9
     assert bucket_value(result_polynomial, 5) == pytest.approx(25.0, abs=1e-6)
     assert bucket_value(result_polynomial, 15) == pytest.approx(55.0, abs=1e-6)
     assert bucket_value(result_polynomial, 25) == pytest.approx(85.0, abs=1e-6)
     assert bucket_value(result_polynomial, 35) == pytest.approx(115.0, abs=1e-6)
 
     result_pchip = data_access.get_chart_data(csv_path.name, interpolation="pchip", **common_kwargs)
-    assert not result_pchip["value"].isna().any()
-    assert len(result_pchip) == 9
+    assert not result_pchip["value"].is_null().any()
+    assert result_pchip.height == 9
     assert bucket_value(result_pchip, 5) == pytest.approx(25.0, abs=1e-6)
     assert bucket_value(result_pchip, 15) == pytest.approx(55.0, abs=1e-6)
     assert bucket_value(result_pchip, 25) == pytest.approx(85.0, abs=1e-6)
     assert bucket_value(result_pchip, 35) == pytest.approx(115.0, abs=1e-6)
 
     result_akima = data_access.get_chart_data(csv_path.name, interpolation="akima", **common_kwargs)
-    assert not result_akima["value"].isna().any()
-    assert len(result_akima) == 9
+    assert not result_akima["value"].is_null().any()
+    assert result_akima.height == 9
     assert bucket_value(result_akima, 5) == pytest.approx(25.0, abs=1e-6)
     assert bucket_value(result_akima, 15) == pytest.approx(55.0, abs=1e-6)
     assert bucket_value(result_akima, 25) == pytest.approx(85.0, abs=1e-6)
     assert bucket_value(result_akima, 35) == pytest.approx(115.0, abs=1e-6)
 
     # is_interpolated 표시는 보간된 행에서 True로 유지된다.
-    interpolated_targets = pd.to_datetime(
-        [
-            "2024-01-01 00:05:00",
-            "2024-01-01 00:15:00",
-            "2024-01-01 00:25:00",
-            "2024-01-01 00:35:00",
-        ]
-    )
+    interpolated_targets = [
+        base_time + timedelta(minutes=5),
+        base_time + timedelta(minutes=15),
+        base_time + timedelta(minutes=25),
+        base_time + timedelta(minutes=35),
+    ]
     for df in (
         result_bfill,
         result_linear,
@@ -204,6 +203,8 @@ def test_chart_data_interpolation_methods(tmp_path: Path, monkeypatch) -> None:
         result_pchip,
         result_akima,
     ):
-        assert df["is_interpolated"].dtype == bool
-        interpolated_flags = df.loc[df["time"].isin(interpolated_targets), "is_interpolated"].tolist()
+        assert df.schema["is_interpolated"] == pl.Boolean
+        interpolated_flags = (
+            df.filter(pl.col("time").is_in(interpolated_targets))["is_interpolated"].to_list()
+        )
         assert all(interpolated_flags)

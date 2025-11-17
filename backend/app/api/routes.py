@@ -111,7 +111,7 @@ async def preview(request: schemas.PreviewRequest) -> schemas.PreviewResponse:
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    rows = df.to_dict(orient="records")
+    rows = df.to_dicts()
     columns = list(df.columns)
     return schemas.PreviewResponse(rows=rows, total_rows=total_rows, columns=columns)
 
@@ -159,9 +159,9 @@ async def run_query(request: schemas.QueryRequest) -> schemas.QueryResponse:
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    rows = df.to_dict(orient="records")
+    rows = df.to_dicts()
     columns = list(df.columns)
-    return schemas.QueryResponse(rows=rows, columns=columns, row_count=len(rows))
+    return schemas.QueryResponse(rows=rows, columns=columns, row_count=df.height)
 
 
 @router.post("/summary", response_model=schemas.SummaryResponse)
@@ -199,6 +199,6 @@ async def get_chart_data(request: schemas.ChartDataRequest) -> schemas.ChartData
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    rows = df.to_dict(orient="records")
+    rows = df.to_dicts()
     columns = list(df.columns)
     return schemas.ChartDataResponse(rows=rows, columns=columns)
