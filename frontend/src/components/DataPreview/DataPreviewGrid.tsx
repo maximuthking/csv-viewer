@@ -15,6 +15,7 @@ import "ag-grid-community/styles/ag-theme-quartz.css";
 import styles from "./DataPreviewGrid.module.css";
 import type { ColumnSchema } from "../../types/api";
 import type { FilterSpec, SortSpec } from "../../state/useDashboardStore";
+import { ColumnMetaBar } from "./ColumnMetaBar";
 
 type DataPreviewGridProps = {
   schema: ColumnSchema[];
@@ -210,6 +211,16 @@ export function DataPreviewGrid({
     [onFilterChange]
   );
 
+  const focusColumn = useCallback((column: string) => {
+    const api = gridRef.current?.api;
+    if (!api) {
+      return;
+    }
+    api.ensureColumnVisible(column);
+    const focusedRow = api.getFocusedCell()?.rowIndex ?? 0;
+    api.setFocusedCell(Math.max(0, focusedRow), column);
+  }, []);
+
   return (
     <section className={styles.container}>
       <header className={styles.header}>
@@ -225,6 +236,7 @@ export function DataPreviewGrid({
           </button>
         </div>
       </header>
+      <ColumnMetaBar schema={schema} sort={sort} filters={filters} onFocusColumn={focusColumn} />
       {error ? (
         <div className={styles.error}>{error}</div>
       ) : (
@@ -234,6 +246,7 @@ export function DataPreviewGrid({
             rowData={rows}
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
+            style={{ width: "100%", height: "100%" }}
             getRowClass={getRowClass}
             animateRows
             suppressAggFuncInHeader

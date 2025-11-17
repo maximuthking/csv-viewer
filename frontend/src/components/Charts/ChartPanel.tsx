@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
-import type { ChangeEvent } from 'react';
-import ReactECharts from 'echarts-for-react';
-import type { EChartsOption, SeriesOption } from 'echarts';
-import { useDashboardStore, ChartType } from '../../state/useDashboardStore';
-import type { ChartOptions } from '../../state/useDashboardStore';
-import styles from './ChartPanel.module.css';
+import { useMemo } from "react";
+import type { ChangeEvent } from "react";
+import ReactECharts from "echarts-for-react";
+import type { EChartsOption, SeriesOption } from "echarts";
+import { useDashboardStore, ChartType } from "../../state/useDashboardStore";
+import type { ChartOptions } from "../../state/useDashboardStore";
+import styles from "./ChartPanel.module.css";
 
 const TIME_BUCKET_OPTIONS = ["1 minute", "5 minutes", "15 minutes", "1 hour", "1 day", "1 week"];
 const INTERPOLATION_OPTIONS: ChartOptions["interpolation"][] = [
@@ -19,15 +19,50 @@ const INTERPOLATION_OPTIONS: ChartOptions["interpolation"][] = [
 ];
 const CHART_TYPE_OPTIONS: ChartType[] = ["line", "bar", "scatter"];
 
+const PRESET_CONFIGS = [
+  {
+    id: "trend",
+    label: "시간 추세",
+    description: "시간 컬럼 + 대표 지표를 빠르게 시각화합니다.",
+    apply: (timeColumn?: string, valueColumn?: string) => ({
+      chart_type: "line" as const,
+      time_column: timeColumn ?? null,
+      value_columns: valueColumn ? [valueColumn] : []
+    })
+  },
+  {
+    id: "distribution",
+    label: "막대 비교",
+    description: "시간 단위로 집계된 분포를 비교합니다.",
+    apply: (timeColumn?: string, valueColumn?: string) => ({
+      chart_type: "bar" as const,
+      time_column: timeColumn ?? null,
+      value_columns: valueColumn ? [valueColumn] : []
+    })
+  },
+  {
+    id: "correlation",
+    label: "상관 관계",
+    description: "두 개의 수치 컬럼으로 산점도를 만듭니다.",
+    apply: (_timeColumn: string | undefined, x?: string, y?: string) => ({
+      chart_type: "scatter" as const,
+      time_column: null,
+      value_columns: [x ?? "", y ?? ""].filter(Boolean)
+    })
+  }
+] as const;
+
 export function ChartPanel() {
   const {
     chart,
     schema,
-    setChartOptions
+    setChartOptions,
+    refreshChart
   } = useDashboardStore((state) => ({
     chart: state.chart,
     schema: state.schema,
-    setChartOptions: state.setChartOptions
+    setChartOptions: state.setChartOptions,
+    refreshChart: state.refreshChart
   }));
 
   const { data, options: chartOptions, isLoading, error } = chart;
@@ -73,6 +108,32 @@ export function ChartPanel() {
       time_column: defaultTimeColumn,
       value_columns: nextValueColumns
     });
+  };
+
+  const handleToggleValueColumn = (columnName: string) => {
+    if (chart_type === "scatter") {
+      return;
+    }
+    const current = new Set(value_columns);
+    if (current.has(columnName)) {
+      const next = value_columns.filter((col) => col !== columnName);
+      void setChartOptions({ value_columns: next });
+      return;
+    }
+    const updated = [...value_columns, columnName].slice(-3);
+    void setChartOptions({ value_columns: updated });
+  };
+
+  const applyPreset = (presetId: (typeof PRESET_CONFIGS)[number]["id"]) => {
+    const preset = PRESET_CONFIGS.find((item) => item.id === presetId);
+    if (!preset) {
+      return;
+    }
+    const defaultTimeColumn = timeColumns[0]?.name;
+    const firstNumeric = numericColumns[0]?.name;
+    const secondNumeric = numericColumns[1]?.name;
+    const payload = preset.apply(defaultTimeColumn, firstNumeric, secondNumeric);
+    void setChartOptions(payload);
   };
 
   const options = useMemo<EChartsOption>(() => {
@@ -233,7 +294,11 @@ export function ChartPanel() {
             smooth: true,
             connectNulls: false,
             lineStyle: { color: "#1976d2", width: 2 },
-            itemStyle: { color: "#1976d2" }
+            itemStyle: { color: "#1976d2" },
+            markLine: {
+              silent: true,
+              data: [{ type: "average", name: "평균" }]
+            }
           };
 
           return lineSeries;
@@ -285,7 +350,11 @@ export function ChartPanel() {
         const barSeries: SeriesOption = {
           name: col,
           type: "bar",
-          data: barSeriesData
+          data: barSeriesData,
+          markLine: {
+            silent: true,
+            data: [{ type: "average", name: "평균" }]
+          }
         };
         return barSeries;
       });
@@ -353,6 +422,16 @@ export function ChartPanel() {
       dataZoom,
       toolbox,
       tooltip: { trigger: isTimeSeries ? "axis" : "item" },
+      brush: isTimeSeries
+        ? {
+            toolbox: ["rect", "polygon", "keep", "clear"],
+            xAxisIndex: "all"
+          }
+        : {
+            toolbox: ["rect", "polygon", "keep", "clear"],
+            xAxisIndex: "all",
+            yAxisIndex: "all"
+          },
       legend: isTimeSeries
         ? {
             show: value_columns.length > 1,
@@ -367,116 +446,168 @@ export function ChartPanel() {
   return (
     <section className={styles.container}>
       <header className={styles.header}>
-        <h2 className={styles.title}>Chart</h2>
+        <div>
+          <h2 className={styles.title}>시각 분석</h2>
+          <p className={styles.description}>차트 영역을 활용해 시간 추세, 분포, 상관관계를 빠르게 비교하세요.</p>
+        </div>
+        <div className={styles.statusBadges}>
+          <span className={styles.badge}>{data.length.toLocaleString()} pts</span>
+          <button type="button" onClick={() => void refreshChart()} className={styles.refreshButton} disabled={isLoading}>
+            데이터 새로고침
+          </button>
+        </div>
       </header>
-      <div className={styles.controls}>
-        <label>
-          Chart Type
-          <select
-            value={chart_type}
-            onChange={handleChartTypeChange}
-            disabled={isLoading}
-          >
-            {CHART_TYPE_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
+      <div className={styles.content}>
+        <aside className={styles.controlPanel}>
+          <label className={styles.controlField}>
+            차트 유형
+            <select value={chart_type} onChange={handleChartTypeChange} disabled={isLoading}>
+              {CHART_TYPE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </label>
+          {chart_type !== "scatter" ? (
+            <>
+              <label className={styles.controlField}>
+                시간 컬럼
+                <select
+                  value={time_column ?? ""}
+                  onChange={(e) => setChartOptions({ time_column: e.target.value })}
+                  disabled={isLoading}
+                >
+                  {timeColumns.map((col) => (
+                    <option key={col.name} value={col.name}>
+                      {col.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className={styles.valueMatrix}>
+                <p>지표 선택 (최대 3개)</p>
+                {numericColumns.map((col) => (
+                  <label key={col.name}>
+                    <input
+                      type="checkbox"
+                      checked={value_columns.includes(col.name)}
+                      onChange={() => handleToggleValueColumn(col.name)}
+                      disabled={isLoading}
+                    />
+                    <span>{col.name}</span>
+                  </label>
+                ))}
+              </div>
+              <label className={styles.controlField}>
+                시간 버킷
+                <select
+                  value={time_bucket}
+                  onChange={(e) => setChartOptions({ time_bucket: e.target.value })}
+                  disabled={isLoading}
+                >
+                  {TIME_BUCKET_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.controlField}>
+                보간 방식
+                <select
+                  value={interpolation}
+                  onChange={(e) =>
+                    setChartOptions({ interpolation: e.target.value as ChartOptions["interpolation"] })
+                  }
+                  disabled={isLoading}
+                >
+                  {INTERPOLATION_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : (
+            <>
+              <label className={styles.controlField}>
+                X 컬럼
+                <select
+                  value={value_columns[0] ?? ""}
+                  onChange={(e) => setChartOptions({ value_columns: [e.target.value, value_columns[1]] })}
+                  disabled={isLoading || numericColumns.length === 0}
+                >
+                  {numericColumns.map((col) => (
+                    <option key={col.name} value={col.name}>
+                      {col.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.controlField}>
+                Y 컬럼
+                <select
+                  value={value_columns[1] ?? ""}
+                  onChange={(e) => setChartOptions({ value_columns: [value_columns[0], e.target.value] })}
+                  disabled={isLoading || numericColumns.length < 2}
+                >
+                  {numericColumns.map((col) => (
+                    <option key={col.name} value={col.name}>
+                      {col.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          <div className={styles.presets}>
+            <p>프리셋</p>
+            {PRESET_CONFIGS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset.id)}
+                className={styles.presetButton}
+                disabled={isLoading}
+              >
+                <span>{preset.label}</span>
+                <small>{preset.description}</small>
+              </button>
             ))}
-          </select>
-        </label>
-        {chart_type !== 'scatter' ? (
-          <>
-            <label>
-              Time Column
-              <select
-                value={time_column ?? ''}
-                onChange={(e) => setChartOptions({ time_column: e.target.value })}
-                disabled={isLoading}
-              >
-                {timeColumns.map((col) => (
-                  <option key={col.name} value={col.name}>{col.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Value Column
-              <select
-                value={value_columns[0] ?? ''}
-                onChange={(e) => setChartOptions({ value_columns: [e.target.value] })}
-                disabled={isLoading || numericColumns.length === 0}
-              >
-                {numericColumns.map((col) => (
-                  <option key={col.name} value={col.name}>{col.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Time Bucket
-              <select
-                value={time_bucket}
-                onChange={(e) => setChartOptions({ time_bucket: e.target.value })}
-                disabled={isLoading}
-              >
-                {TIME_BUCKET_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Interpolation
-              <select
-                value={interpolation}
-                onChange={(e) =>
-                  setChartOptions({ interpolation: e.target.value as ChartOptions["interpolation"] })
-                }
-                disabled={isLoading}
-              >
-                {INTERPOLATION_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            </label>
-          </>
-        ) : (
-          <>
-            <label>
-              X-Axis Column
-              <select
-                value={value_columns[0] ?? ''}
-                onChange={(e) => setChartOptions({ value_columns: [e.target.value, value_columns[1]] })}
-                disabled={isLoading || numericColumns.length === 0}
-              >
-                {numericColumns.map((col) => (
-                  <option key={col.name} value={col.name}>{col.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Y-Axis Column
-              <select
-                value={value_columns[1] ?? ''}
-                onChange={(e) => setChartOptions({ value_columns: [value_columns[0], e.target.value] })}
-                disabled={isLoading || numericColumns.length < 2}
-              >
-                {numericColumns.map((col) => (
-                  <option key={col.name} value={col.name}>{col.name}</option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-      </div>
-
-      <div className={styles.chartWrapper}>
-        {error ? (
-          <div className={styles.error}>{error}</div>
-        ) : (
-          <ReactECharts
-            option={options}
-            style={{ height: '900px', width: '100%' }}
-            notMerge
-            lazyUpdate
-          />
-        )}
-        {isLoading && <div className={styles.loadingOverlay}>Loading chart...</div>}
+          </div>
+        </aside>
+        <div className={styles.chartColumn}>
+          <div className={styles.chartWrapper}>
+            {error ? (
+              <div className={styles.error}>{error}</div>
+            ) : (
+              <ReactECharts option={options} style={{ height: "70vh", width: "100%" }} notMerge lazyUpdate />
+            )}
+            {isLoading && <div className={styles.loadingOverlay}>차트를 계산 중...</div>}
+          </div>
+          <div className={styles.chartSummary}>
+            <div>
+              <p className={styles.summaryLabel}>선택된 지표</p>
+              <p className={styles.summaryValue}>
+                {value_columns.length > 0 ? value_columns.join(", ") : "선택된 수치 컬럼이 없습니다."}
+              </p>
+            </div>
+            {chart_type !== "scatter" ? (
+              <div>
+                <p className={styles.summaryLabel}>시간 버킷</p>
+                <p className={styles.summaryValue}>{time_bucket}</p>
+              </div>
+            ) : null}
+            <div>
+              <p className={styles.summaryLabel}>보간/프리셋</p>
+              <p className={styles.summaryValue}>
+                {chart_type === "scatter" ? "산점도" : interpolation}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

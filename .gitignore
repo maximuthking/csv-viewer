@@ -52,3 +52,8 @@ data/*
 logs/
 
 todo.txt
+.npm*
+# Data files
+*.csv
+*.parquet
+*.duckdb

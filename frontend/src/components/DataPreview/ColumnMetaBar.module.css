@@ -1,0 +1,93 @@
+.metaBar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.chip {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: border-color 0.2s ease, transform 0.1s ease;
+}
+
+.chip:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.chipTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chipName {
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dtype {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
+.chipBottom {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.nullable,
+.notNull,
+.sortBadge,
+.filterBadge {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.nullable {
+  background: rgba(248, 250, 252, 0.05);
+}
+
+.notNull {
+  border-color: rgba(74, 222, 128, 0.4);
+  color: #86efac;
+}
+
+.sortBadge {
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+}
+
+.filterBadge {
+  border-color: rgba(249, 115, 22, 0.4);
+  color: #fdba74;
+}
+
+.emptyState {
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}

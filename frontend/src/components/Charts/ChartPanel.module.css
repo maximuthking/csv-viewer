@@ -1,28 +1,150 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  background: var(--surface-panel);
+  gap: 1rem;
+  background: rgba(15, 23, 42, 0.6);
   border-radius: 1rem;
-  border: 1px solid var(--border);
-  padding: 1rem 1.25rem 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.35);
 }
 
 .header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 1rem;
 }
 
 .title {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 1.35rem;
+}
+
+.description {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  max-width: 560px;
+}
+
+.statusBadges {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.badge {
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.18);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.refreshButton {
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent);
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+}
+
+.refreshButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1rem;
+}
+
+.controlPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.5rem;
+  border-right: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.controlField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.controlField select {
+  border-radius: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 0.45rem 0.75rem;
+  background: rgba(30, 41, 59, 0.85);
+  color: #f8fafc;
+}
+
+.valueMatrix {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.valueMatrix label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.presets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.presets p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.presetButton {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--accent);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.presetButton small {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.chartColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .chartWrapper {
   position: relative;
-  margin-top: 1rem;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(2, 6, 23, 0.35);
 }
 
 .loadingOverlay {
@@ -35,7 +157,7 @@
   color: #e2e8f0;
   font-weight: 600;
   backdrop-filter: blur(2px);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
 }
 
 .error {
@@ -46,26 +168,43 @@
   text-align: center;
 }
 
-.controls {
-  display: flex;
-  flex-wrap: wrap;
+.chartSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.75rem;
-  align-items: center;
 }
 
-.controls label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.summaryLabel {
+  margin: 0;
   font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
-.controls select {
-  min-width: 120px;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border);
-  padding: 0.35rem 0.75rem;
-  background: rgba(30, 41, 59, 0.85);
-  color: #f8fafc;
+.summaryValue {
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+
+  .controlPanel {
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    padding-bottom: 1rem;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  .container {
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .controlField select {
+    background: rgba(241, 245, 249, 0.9);
+    color: #0f172a;
+  }
 }

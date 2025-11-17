@@ -2,10 +2,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  background: var(--surface-panel);
+  background: rgba(15, 23, 42, 0.6);
   border-radius: 1rem;
-  border: 1px solid var(--border);
-  padding: 1rem 1.25rem 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.35);
 }
 
 .header {
@@ -47,9 +48,13 @@
 
 .gridWrapper {
   position: relative;
-  height: 880px;
-  border-radius: 0.75rem;
+  min-height: 420px;
+  height: 70vh;
+  max-height: 900px;
+  border-radius: 0.9rem;
   overflow: hidden;
+  resize: vertical;
+  border: 1px solid rgba(15, 23, 42, 0.45);
 }
 
 .loadingOverlay {
