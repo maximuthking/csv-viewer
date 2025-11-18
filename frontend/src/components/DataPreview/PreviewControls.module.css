@@ -244,6 +244,7 @@
     flex: 1;
   }
 }
+.darkTheme &,
 @media (prefers-color-scheme: dark) {
   .pageSize select {
     background: rgba(30, 41, 59, 0.85);

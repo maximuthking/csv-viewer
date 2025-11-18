@@ -66,7 +66,15 @@ export function ChartPanel() {
   }));
 
   const { data, options: chartOptions, isLoading, error } = chart;
-  const { chart_type, time_column, value_columns, time_bucket, interpolation } = chartOptions;
+  const {
+    chart_type,
+    time_column,
+    value_columns,
+    time_bucket,
+    interpolation,
+    show_markers,
+    show_mean_line
+  } = chartOptions;
 
   const { timeColumns, numericColumns } = useMemo(() => ({
     timeColumns: schema.filter((c) => c.dtype.includes("TIMESTAMP")),
@@ -277,7 +285,7 @@ export function ChartPanel() {
               seriesDataWithGaps.push(null);
             }
 
-          const symbolSize = point.isInterpolated ? 3 : 8;
+          const symbolSize = show_markers ? (point.isInterpolated ? 3 : 8) : 0;
           seriesDataWithGaps.push({
             value: [point.axisValue, point.numericValue],
             symbolSize,
@@ -293,12 +301,15 @@ export function ChartPanel() {
             data: seriesDataWithGaps,
             smooth: true,
             connectNulls: false,
+            showSymbol: show_markers,
             lineStyle: { color: "#1976d2", width: 2 },
             itemStyle: { color: "#1976d2" },
-            markLine: {
-              silent: true,
-              data: [{ type: "average", name: "평균" }]
-            }
+            markLine: show_mean_line
+              ? {
+                silent: true,
+                data: [{ type: "average", name: "평균" }]
+              }
+              : undefined
           };
 
           return lineSeries;
@@ -351,10 +362,12 @@ export function ChartPanel() {
           name: col,
           type: "bar",
           data: barSeriesData,
-          markLine: {
-            silent: true,
-            data: [{ type: "average", name: "평균" }]
-          }
+          markLine: show_mean_line
+            ? {
+              silent: true,
+              data: [{ type: "average", name: "평균" }]
+            }
+            : undefined
         };
         return barSeries;
       });
@@ -441,7 +454,7 @@ export function ChartPanel() {
           }
         : { show: false },
     };
-  }, [chart_type, data, time_column, value_columns]);
+  }, [chart_type, data, show_mean_line, show_markers, time_column, value_columns]);
 
   return (
     <section className={styles.container}>
@@ -470,9 +483,9 @@ export function ChartPanel() {
             </select>
           </label>
           {chart_type !== "scatter" ? (
-            <>
-              <label className={styles.controlField}>
-                시간 컬럼
+          <>
+            <label className={styles.controlField}>
+              시간 컬럼
                 <select
                   value={time_column ?? ""}
                   onChange={(e) => setChartOptions({ time_column: e.target.value })}
@@ -528,8 +541,26 @@ export function ChartPanel() {
                     </option>
                   ))}
                 </select>
-              </label>
-            </>
+            </label>
+            <label className={styles.controlField}>
+              포인트 표시
+              <input
+                type="checkbox"
+                checked={show_markers}
+                onChange={(event) => void setChartOptions({ show_markers: event.target.checked })}
+                disabled={isLoading}
+              />
+            </label>
+            <label className={styles.controlField}>
+              평균선 표시
+              <input
+                type="checkbox"
+                checked={show_mean_line}
+                onChange={(event) => void setChartOptions({ show_mean_line: event.target.checked })}
+                disabled={isLoading}
+              />
+            </label>
+          </>
           ) : (
             <>
               <label className={styles.controlField}>

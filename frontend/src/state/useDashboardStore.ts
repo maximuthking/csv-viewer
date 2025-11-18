@@ -85,6 +85,8 @@ export type ChartOptions = {
     | "polynomial"
     | "pchip"
     | "akima";
+  show_markers: boolean;
+  show_mean_line: boolean;
 };
 
 type ChartState = {
@@ -145,7 +147,9 @@ const initialChartState: ChartState = {
     time_column: null,
     value_columns: [],
     time_bucket: "5 minutes",
-    interpolation: "none"
+    interpolation: "none",
+    show_markers: true,
+    show_mean_line: true
   },
   isLoading: false
 };
