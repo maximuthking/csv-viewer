@@ -64,13 +64,6 @@ export function DashboardPage() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("data");
 
-  const subtitle = useMemo(() => {
-    if (!selectedPath) {
-      return "데이터셋을 선택하면 즉시 탐색을 시작할 수 있습니다.";
-    }
-    return selectedPath;
-  }, [selectedPath]);
-
   const previewFilters = preview.filters;
   const previewSort = preview.sort;
   const previewRows = preview.rows;
@@ -98,87 +91,8 @@ export function DashboardPage() {
     } as Record<TabKey, string | undefined>;
   }, [previewFilters, previewSort, previewRows, schema, summaryData, chartValueColumns]);
 
-  const kpis = useMemo(() => {
-    const totalRows = previewTotalRows;
-    const pageRatio =
-      totalRows > 0
-        ? `${((previewPage - 1) * previewPageSize + previewRows.length).toLocaleString()} / ${totalRows.toLocaleString()}`
-        : " - ";
-    const totalColumns = schema.length;
-
-    const nullInsight = summaryData.reduce<{
-      column?: string;
-      rate: number;
-    }>(
-      (acc, item) => {
-        const total = Number(item.total_rows ?? totalRows);
-        if (!total || !Number.isFinite(total)) {
-          return acc;
-        }
-        const nullCount = Number(item.null_count ?? 0);
-        const rate = Math.max(0, nullCount / total);
-        if (rate > acc.rate) {
-          return { column: item.column, rate };
-        }
-        return acc;
-      },
-      { column: undefined, rate: -1 }
-    );
-
-    const nullMessage =
-      nullInsight.rate >= 0 && nullInsight.column
-        ? `${nullInsight.column} · ${(nullInsight.rate * 100).toFixed(1)}% null`
-        : "충분한 통계가 없습니다.";
-
-    const cards = [
-      {
-        label: "Rows previewed",
-        value: totalRows > 0 ? totalRows.toLocaleString() : "-",
-        description: totalRows > 0 ? `현재 페이지 범위 ${pageRatio}` : "미리보기 대기 중"
-      },
-      {
-        label: "Columns",
-        value: totalColumns.toLocaleString(),
-        description: previewRows.length > 0 ? `${previewRows.length} rows loaded` : "스키마 분석 중"
-      },
-      {
-        label: "Filters & Sort",
-        value: `${previewFilters.length} / ${previewSort.length}`,
-        description: previewFilters.length + previewSort.length > 0 ? "현재 탐색 컨텍스트" : "기본 순서"
-      },
-      {
-        label: "Null Hotspot",
-        value: summaryData.length > 0 ? nullMessage : "-",
-        description: summaryData.length > 0 ? "누락률이 가장 높은 열" : "요약 통계 필요"
-      }
-    ];
-    return cards;
-  }, [previewFilters, previewSort, previewPage, previewPageSize, previewRows, previewTotalRows, schema, summaryData]);
-
   return (
     <div className={styles.page}>
-      <header className={styles.globalHeader}>
-        <div>
-          <p className={styles.productTag}>CSV Explorer</p>
-          <h1 className={styles.title}>데이터 EDA 콘솔</h1>
-          <p className={styles.subtitle}>{subtitle}</p>
-        </div>
-        <div className={styles.headerStatus}>
-          {preview.isLoading ? <span className={styles.badge}>미리보기 로딩</span> : null}
-          {summary.isLoading ? <span className={styles.badge}>통계 계산</span> : null}
-          {preview.error ? <span className={styles.badgeError}>Preview Error</span> : null}
-          {summary.error ? <span className={styles.badgeError}>Summary Error</span> : null}
-        </div>
-      </header>
-      <section className={styles.kpiGrid}>
-        {kpis.map((item) => (
-          <article key={item.label} className={styles.kpiCard}>
-            <p className={styles.kpiLabel}>{item.label}</p>
-            <p className={styles.kpiValue}>{item.value}</p>
-            <p className={styles.kpiDescription}>{item.description}</p>
-          </article>
-        ))}
-      </section>
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
           <FileBrowser

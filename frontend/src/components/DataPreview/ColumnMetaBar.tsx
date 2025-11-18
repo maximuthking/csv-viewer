@@ -18,39 +18,19 @@ export function ColumnMetaBar({ schema, sort, filters, onFocusColumn }: ColumnMe
     );
   }
 
-  const sortMap = new Map(sort.map((item, index) => [item.column, { ...item, index }]));
-  const filterSet = new Set(filters.map((item) => item.column));
-
   return (
     <div className={styles.metaBar}>
-      {schema.map((column) => {
-        const sortInfo = sortMap.get(column.name);
-        const filterActive = filterSet.has(column.name);
-        const nullable = column.nullable ?? false;
-        const dtype = column.dtype?.toUpperCase() ?? "UNKNOWN";
-        return (
-          <button
-            key={column.name}
-            type="button"
-            className={styles.chip}
-            onClick={() => onFocusColumn?.(column.name)}
-          >
-            <div className={styles.chipTop}>
-              <span className={styles.chipName}>{column.name}</span>
-              <span className={styles.dtype}>{dtype}</span>
-            </div>
-            <div className={styles.chipBottom}>
-              {nullable ? <span className={styles.nullable}>nullable</span> : <span className={styles.notNull}>required</span>}
-              {sortInfo ? (
-                <span className={styles.sortBadge}>
-                  {sortInfo.direction === "asc" ? "▲" : "▼"} {sortInfo.index + 1}
-                </span>
-              ) : null}
-              {filterActive ? <span className={styles.filterBadge}>filter</span> : null}
-            </div>
-          </button>
-        );
-      })}
+      {schema.map((column) => (
+        <button
+          key={column.name}
+          type="button"
+          className={styles.chip}
+          onClick={() => onFocusColumn?.(column.name)}
+          title={column.name}
+        >
+          {column.name}
+        </button>
+      ))}
     </div>
   );
 }
