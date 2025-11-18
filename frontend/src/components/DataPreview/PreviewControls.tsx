@@ -148,43 +148,59 @@ export function PreviewControls({
 
   return (
     <div className={styles.controls}>
-      <div className={styles.paginationSection}>
-        <div className={styles.pagination}>
-          <button type="button" disabled={!canPrev || isLoading} onClick={() => onPageChange(1)}>
-            ⏮︎ 처음
-          </button>
-          <button type="button" disabled={!canPrev || isLoading} onClick={() => onPageChange(page - 1)}>
-            ← 이전
-          </button>
-          <span className={styles.pageInfo}>
-            페이지 {page} / {totalPages}
-          </span>
-          <button type="button" disabled={!canNext || isLoading} onClick={() => onPageChange(page + 1)}>
-            다음 →
-          </button>
-          <button type="button" disabled={!canNext || isLoading} onClick={() => onPageChange(totalPages)}>
-            마지막 ⏭︎
-          </button>
-        </div>
-        <div className={styles.jumpRow}>
-          <label>
-            행 이동
-            <input
-              type="number"
-              min={1}
-              max={totalPages}
-              value={pageJump}
-              onChange={(event) => setPageJump(event.target.value)}
-              placeholder="page #"
-            />
+      <div className={styles.controlRow}>
+        <div className={styles.paginationSection}>
+          <div className={styles.pagination}>
+            <button type="button" disabled={!canPrev || isLoading} onClick={() => onPageChange(1)}>
+              ⏮︎ 처음
+            </button>
+            <button type="button" disabled={!canPrev || isLoading} onClick={() => onPageChange(page - 1)}>
+              ← 이전
+            </button>
+            <span className={styles.pageInfo}>
+              페이지 {page} / {totalPages}
+            </span>
+            <button type="button" disabled={!canNext || isLoading} onClick={() => onPageChange(page + 1)}>
+              다음 →
+            </button>
+            <button type="button" disabled={!canNext || isLoading} onClick={() => onPageChange(totalPages)}>
+              마지막 ⏭︎
+            </button>
+          </div>
+          <div className={styles.jumpRow}>
+            <label>
+              행 이동
+              <input
+                type="number"
+                min={1}
+                max={totalPages}
+                value={pageJump}
+                onChange={(event) => setPageJump(event.target.value)}
+                placeholder="page #"
+              />
+            </label>
+            <button type="button" onClick={handleJump} disabled={isLoading}>
+              이동
+            </button>
+          </div>
+          <label className={styles.pageSize}>
+            페이지 크기
+            <select
+              value={pageSize}
+              disabled={isLoading}
+              onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size.toLocaleString()} 행
+                </option>
+              ))}
+            </select>
           </label>
-          <button type="button" onClick={handleJump} disabled={isLoading}>
-            이동
-          </button>
         </div>
       </div>
-      <div className={styles.search}>
-        <form className={styles.searchForm} onSubmit={handleSubmit}>
+      <div className={styles.controlRow}>
+        <form className={styles.search} onSubmit={handleSubmit}>
           <label className={styles.columnSelect}>
             열 선택
             <select
@@ -260,20 +276,6 @@ export function PreviewControls({
               {history.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.column} · {item.value} ({item.matchMode})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.pageSize}>
-            페이지 크기
-            <select
-              value={pageSize}
-              disabled={isLoading}
-              onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            >
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>
-                  {size.toLocaleString()} 행
                 </option>
               ))}
             </select>

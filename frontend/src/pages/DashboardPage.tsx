@@ -156,23 +156,24 @@ export function DashboardPage() {
                     onSortChange={(model) => void updateSort(model)}
                     onFilterChange={(model) => void updateFilters(model)}
                     onReload={() => void refreshPreview()}
-                  />
-                  <PreviewControls
-                    page={preview.page}
-                    pageSize={preview.pageSize}
-                    totalRows={preview.totalRows}
-                    isLoading={preview.isLoading}
-                    columns={schema.map((column) => column.name)}
-                    searchColumn={preview.searchColumn}
-                    searchTerm={preview.searchTerm}
-                    searchInProgress={preview.searchInProgress}
-                    searchError={preview.searchError}
-                    lastMatch={preview.lastSearchMatch}
-                    onSearch={(payload) => void locatePreviewValue(payload)}
-                    onClearSearch={() => void clearPreviewSearch()}
-                    onPageChange={(page) => void setPage(page)}
-                    onPageSizeChange={(size) => void setPageSize(size)}
-                  />
+                  >
+                    <PreviewControls
+                      page={preview.page}
+                      pageSize={preview.pageSize}
+                      totalRows={preview.totalRows}
+                      isLoading={preview.isLoading}
+                      columns={schema.map((column) => column.name)}
+                      searchColumn={preview.searchColumn}
+                      searchTerm={preview.searchTerm}
+                      searchInProgress={preview.searchInProgress}
+                      searchError={preview.searchError}
+                      lastMatch={preview.lastSearchMatch}
+                      onSearch={(payload) => void locatePreviewValue(payload)}
+                      onClearSearch={() => void clearPreviewSearch()}
+                      onPageChange={(page) => void setPage(page)}
+                      onPageSizeChange={(size) => void setPageSize(size)}
+                    />
+                  </DataPreviewGrid>
                 </div>
               ) : null}
               {activeTab === "chart" ? (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ColDef,
   GridApi,
@@ -33,6 +33,7 @@ type DataPreviewGridProps = {
   onSortChange: (sort: SortSpec[]) => void;
   onFilterChange: (filters: FilterSpec[]) => void;
   onReload: () => void;
+  children?: ReactNode;
 };
 
 export function DataPreviewGrid({
@@ -50,7 +51,8 @@ export function DataPreviewGrid({
   highlightToken,
   onSortChange,
   onFilterChange,
-  onReload
+  onReload,
+  children
 }: DataPreviewGridProps) {
   const gridRef = useRef<AgGridReact>(null);
 
@@ -265,6 +267,7 @@ export function DataPreviewGrid({
           {isLoading && <div className={styles.loadingOverlay}>Fetching data...</div>}
         </div>
       )}
+      {children ? <div className={styles.controlsSlot}>{children}</div> : null}
     </section>
   );
 }

@@ -113,6 +113,10 @@
   animation: highlightFade 2s ease-out 1;
 }
 
+.controlsSlot {
+  margin-top: 0.75rem;
+}
+
 @media (prefers-color-scheme: light) {
   .loadingOverlay {
     background: rgba(148, 163, 184, 0.25);
